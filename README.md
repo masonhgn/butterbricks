@@ -4,6 +4,11 @@ Interview practice, laid one brick at a time: [butterbricks.org](https://butterb
 
 One list of problems, sorted into categories:
 
+- **Patterns**: algorithm patterns, laid one brick at a time. Each brick (a *variant*, like "membership set") is one
+  small idea with one invariant: you step through a worked example, fill in its key lines, then solve a twin (same
+  structure, new story), a variation (one change) and a stretch. Laid bricks come back for review after 1, 3, 7 and
+  21 days, and recognition drills train naming the pattern from a bare problem statement.
+  `docs/patterns-taxonomy.md` has the model, the naming rule and the plan; Arrays & Hashing is built.
 - **SQL**: 78 challenges in 10 levels, from `SELECT *` to window functions, data changes and multi-step boss
   problems, against a real SQLite database of a small online store (customers, orders, products, employees).
 - **Implementation**: the "small implementation" interview round. You get a realistic scenario, build a small system
@@ -59,6 +64,19 @@ levels, summaries and tags) and a filter per category. Opening a problem shows i
 that category's problems; a link like `/sql/#distinct_categories` or `/implementation/#kv-store` opens one directly.
 Drag the dividers to resize the panes.
 
+### Patterns
+
+- `/patterns/` is the wall: one row of bricks per pattern (foundation at the bottom), the review queue, and the way
+  into recognition drills. `/patterns/#<problem>` opens a problem; `/patterns/#drill` starts a drill.
+- **Learn** shows the variant: its idea, invariant, template, signals, near-misses and common mistakes, and where its
+  name comes from (consensus, textbook, or ours).
+- A **worked example** steps through the reference solution line by line with its variables, asking you to predict
+  yes/no questions on the way. The trace is recorded at build time by running the reference
+  (`categories/patterns/trace.py`), so it is exactly what Python did.
+- **Fill in the blanks** problems leave `___` in the key lines. Every common mistake has a test built to catch it,
+  and a failing one says which mistake it caught.
+- A brick is **laid** when its variation or stretch is solved without revealing that problem's solution.
+
 ### SQL
 
 - The **Challenge** tab has the prompt and hints, **Lesson** the level's lesson (a new level opens on it), **Schema**
@@ -98,6 +116,8 @@ Drag the dividers to resize the panes.
 
 ```
 ./butterbricks.py                                              # the categories
+./butterbricks.py patterns                                     # the pattern problems
+./butterbricks.py patterns badge-scanned-twice                 # writes categories/patterns/solutions/<problem>.py, runs every test
 ./butterbricks.py sql                                          # the SQL challenges, one after another
 ./butterbricks.py implementation                               # the implementation problems
 ./butterbricks.py implementation fulfillment                   # writes categories/implementation/solutions/fulfillment.py, runs part 1's samples
@@ -119,10 +139,19 @@ butterbricks.py            the terminal version
 web/                       the site: index.html (home: every problem), common.css/common.js (shared: the sidebar, accounts, sync,
                            editor, the pixel look), logo.svg
 tools/pixelart.py          draws the logo
-web/<category>/            each category's page
+web/<category>/            each category's page; pyworker.js and pyrun.js run Python for Patterns and Implementation
+categories/framework/      the test framework shared by Patterns and Implementation: CallTest, OpsTest,
+                           ScenarioTest, and the runner (in the terminal and, through Pyodide, the browser)
+categories/patterns/       bricks/ (the model and one file per pattern), trace.py (worked-example traces)
 categories/sql/            challenges.py (lessons and challenges), dataset.py (the data), engine.py (the checker)
-categories/implementation/ framework/ (Problem, Part, OpsTest, ScenarioTest, the runner) and problems/ (one file each)
+categories/implementation/ problems/ (one file each)
 ```
+
+**Adding a pattern**: follow `docs/patterns-taxonomy.md`: write `categories/patterns/bricks/<pattern>.py` with a
+`Pattern` of `Variant`s, each with one example, completion, twin, variation and stretch, three or more reviews and three
+or more drills; add it to `bricks/__init__.py`; run `./butterbricks.py selftest`. The model refuses a variant that's
+missing a role or has a common mistake no test catches; the self-test checks that every reference passes, every trace
+builds, and a do-nothing solution fails.
 
 **Adding a SQL challenge**: append a dict with a prompt and a solution to `categories/sql/challenges.py`, then run
 `./butterbricks.py selftest`. The browser's checker, `web/sql/engine.js`, is a port of `categories/sql/engine.py`.

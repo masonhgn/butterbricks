@@ -16,6 +16,7 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+sys.path.insert(0, os.path.dirname(HERE))  # the shared framework package
 
 from framework import runner  # noqa: E402
 from problems import PROBLEMS, get  # noqa: E402

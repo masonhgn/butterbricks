@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tinos:wght@400;700&display=swap">
-<link rel="stylesheet" href="../common.css?v=bbs-5">
+<link rel="stylesheet" href="../common.css?v=bbs-6">
 <style>
   body { display: block; overflow: auto; }
   .titlebar { height: 50px; }
@@ -60,6 +60,9 @@
   .tag { font: 700 13px var(--serif); padding: 0 7px; border: 2px solid; white-space: nowrap; }
   .tag.sql { color: #1f5a73; border-color: #9cc6d6; background: #e9f4f8; }
   .tag.implementation { color: #6a3d86; border-color: #cdb4dd; background: #f4ecf9; }
+  .tag.patterns { color: #6b4510; border-color: #e6cb8e; background: var(--butter-soft); }
+  a.bar-row { color: var(--text); text-decoration: none; }
+  a.bar-row:hover .name { text-decoration: underline; }
   .note { color: var(--muted); font-size: 13.5px; }
   .signed-out { text-align: center; padding: 40px 22px; }
   .signed-out p { color: var(--muted); }
@@ -79,7 +82,7 @@
 
 <main class="profile" id="profile"></main>
 
-<script src="../common.js?v=bbs-5"></script>
+<script src="../common.js?v=bbs-6"></script>
 <script>
 "use strict";
 
@@ -131,11 +134,16 @@ function render() {
     <section class="tiles">
       <div class="panel tile"><div class="v">${st.xp.toLocaleString()}</div><div class="k">total XP</div></div>
       <div class="panel tile"><div class="v">${st.problemsSolved}</div><div class="k">problems solved</div></div>
+      <div class="panel tile"><div class="v">${st.patterns.laid}<span class="note"> / ${st.patterns.bricks.length}</span></div><div class="k">pattern bricks laid</div></div>
       <div class="panel tile"><div class="v">${st.sql.solved}<span class="note"> / ${st.sql.total}</span></div><div class="k">SQL challenges</div></div>
       <div class="panel tile"><div class="v">${st.impl.parts}<span class="note"> / ${st.impl.totalParts}</span></div><div class="k">implementation parts</div></div>
       <div class="panel tile"><div class="v">${st.streak}</div><div class="k">day streak${st.activeDays ? ` · ${plural(st.activeDays, "active day")}` : ""}</div></div>
       <div class="panel tile"><div class="v">${duration(st.seconds)}</div><div class="k">on implementation problems</div></div>
+      <div class="panel tile"><div class="v">${st.patterns.drills}</div><div class="k">recognition drills right</div></div>
+      <div class="panel tile"><div class="v">${st.patterns.solved}<span class="note"> / ${st.patterns.total}</span></div><div class="k">pattern problems</div></div>
     </section>
+
+    <section class="panel"><h2>Patterns</h2><div id="bricks-list"></div></section>
 
     <section class="cols">
       <div class="panel"><h2>SQL by level</h2>${st.sql.levels.map((l, i) => `
@@ -146,7 +154,14 @@ function render() {
 
     <section class="panel"><h2>Recent solves</h2><ul class="recent" id="recent"></ul></section>
 
-    <p class="note">XP: a SQL challenge is worth ${XP_RULES.sqlPerLevel} XP times its level; an implementation part ${XP_RULES.implPart} XP, plus ${XP_RULES.implProblemBonus} for finishing a whole problem. Each level takes 100 XP more than the last.</p>`;
+    <p class="note">XP: a pattern problem is worth ${XP_RULES.patternRole.example} (worked example) to ${XP_RULES.patternRole.stretch} (stretch), plus ${XP_RULES.brickLaid} for laying a brick, ${XP_RULES.patternRole.review} per review and ${XP_RULES.drill} per drill; a SQL challenge ${XP_RULES.sqlPerLevel} XP times its level; an implementation part ${XP_RULES.implPart} XP, plus ${XP_RULES.implProblemBonus} for finishing a whole problem. Each level takes 100 XP more than the last.</p>`;
+
+  const bricks = $("bricks-list");
+  for (const b of st.patterns.bricks) {
+    const row = el("a", `bar-row brick-row${b.laid ? " full" : ""}`, `<span class="name">${esc(b.title)}${b.laid ? " · laid" : ""}</span>${bar(b.solved / b.total)}<span class="n">${b.solved}/${b.total}</span>`);
+    row.href = `/patterns/#${encodeURIComponent(b.next)}`;
+    bricks.append(row);
+  }
 
   const impl = $("impl-list");
   for (const p of st.impl.problems) {
@@ -161,9 +176,11 @@ function render() {
   const recent = $("recent");
   const titles = {};
   for (const c of catalog.categories) titles[c.key] = c.title;
+  titles["patterns-drill"] = "Patterns";
   for (const a of st.log.slice(0, 15)) {
-    const href = a.c === "sql" ? `/sql/#${encodeURIComponent(a.k)}` : `/implementation/#${encodeURIComponent(a.k.split("#")[0])}`;
-    recent.append(el("li", "", `<span class="when">${esc(ago(a.t))}</span><span class="what"><a href="${href}">${esc(a.label)}</a></span><span class="tag ${esc(a.c)}">${esc(titles[a.c] || a.c)}</span>`));
+    const href = a.c === "sql" ? `/sql/#${encodeURIComponent(a.k)}` : a.c === "patterns" ? `/patterns/#${encodeURIComponent(a.k)}`
+      : a.c === "patterns-drill" ? "/patterns/#drill" : `/implementation/#${encodeURIComponent(a.k.split("#")[0])}`;
+    recent.append(el("li", "", `<span class="when">${esc(ago(a.t))}</span><span class="what"><a href="${href}">${esc(a.label)}</a></span><span class="tag ${esc(a.c.split("-")[0])}">${esc(titles[a.c] || a.c)}</span>`));
   }
   if (!st.log.length) recent.append(el("li", "note", "Problems you solve from now on show up here. Solves from before profiles existed count toward your XP, but weren't dated."));
 }

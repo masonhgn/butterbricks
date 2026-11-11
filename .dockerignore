@@ -12,3 +12,6 @@ web/sql/data.json
 web/sql/store.db
 web/implementation/problems.json
 web/implementation/py
+web/patterns/patterns.json
+web/patterns/py
+categories/patterns/solutions

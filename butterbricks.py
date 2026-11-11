@@ -11,6 +11,9 @@
   ./butterbricks.py implementation fulfillment               write categories/implementation/solutions/fulfillment.py from the
                                                              starter (first time) and run part 1's sample tests
   ./butterbricks.py implementation fulfillment --part 2 --submit    every test for parts 1-2, hidden ones included
+  ./butterbricks.py patterns                                 list the patterns, variants and problems
+  ./butterbricks.py patterns badge-scanned-twice             write categories/patterns/solutions/<problem>.py from the
+                                                             starter (first time) and run every test
   ./butterbricks.py selftest                                 every category's reference solutions pass their own checks
 
 It runs through uv (https://docs.astral.sh/uv/), which installs the SQL terminal's two UI libraries on first run.
@@ -22,6 +25,7 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CATEGORIES = {
+    "patterns": "algorithm patterns, one small idea at a time, each with a worked example and problems",
     "sql": "78 SQL challenges in 10 levels, against a real SQLite database",
     "implementation": "multi-part problems: build a small system in Python against a test suite",
 }

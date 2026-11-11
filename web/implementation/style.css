@@ -38,73 +38,9 @@
 .notes-body { display: flex; flex-direction: column; }
 #notes { flex: 1; min-height: 300px; width: 100%; resize: none; padding: 10px 12px; font-size: 14px; border: 1px solid var(--line-strong); background: var(--cell); border-radius: 3px; }
 
-/* test results */
-
-.bottom-body { flex: 1; overflow-y: auto; min-height: 0; }
-.results-empty { padding: 14px 16px; }
-.results-summary { padding: 9px 14px; font-weight: 700; display: flex; gap: 12px; align-items: center; border-bottom: 1px solid var(--line); }
-.results-summary.pass { background: var(--done-bg); color: var(--done); }
-.results-summary.fail { background: var(--bad-bg); color: var(--bad); }
-.results-summary.running { background: var(--chrome); color: var(--muted); }
-.results-summary .btn { margin-left: auto; }
-
-.test-row { border-bottom: 1px solid var(--line); }
-.test-head {
-  display: flex;
-  gap: 9px;
-  align-items: baseline;
-  padding: 6px 14px;
-  cursor: pointer;
-  width: 100%;
-  border: 0;
-  background: transparent;
-  text-align: left;
-}
-.test-head:hover { background: var(--chrome); }
-.test-head .icon { width: 16px; flex: none; text-align: center; font-weight: 700; }
-.test-head .tname { flex: 1; min-width: 0; }
-.test-head .tpart { color: var(--muted); font-size: 13px; flex: none; }
-.test-head .time { color: var(--muted); font: 12.5px var(--mono); flex: none; }
-.badge { font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); border: 1px solid var(--line); border-radius: 8px; padding: 0 6px; margin-left: 6px; }
-.st-pass .icon { color: var(--done); }
-.st-fail .icon, .st-error .icon, .st-killed .icon { color: var(--bad); }
-.st-slow .icon { color: var(--warn); }
-.st-pending .icon, .st-running .icon, .st-skipped .icon { color: var(--line-strong); }
-.st-running .tname::after { content: " …"; color: var(--muted); }
-.test-body { padding: 2px 14px 12px 39px; font-size: 14px; }
-.test-body .msg { font-weight: 600; margin: 4px 0; }
-.st-fail .msg, .st-error .msg, .st-killed .msg { color: var(--bad); }
-.st-slow .msg { color: var(--warn); }
-.test-body pre { margin: 6px 0; padding: 8px 10px; background: var(--cell); border: 1px solid var(--line); overflow-x: auto; font-size: 13px; line-height: 1.45; }
-.test-body .label { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin-top: 10px; }
-.metrics { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
-.metric { font: 12.5px var(--mono); border: 1px solid var(--line); background: var(--cell); border-radius: 3px; padding: 1px 7px; }
-.metric.ok { border-color: #a8d4b6; }
-.metric.bad { border-color: #e7aaa5; background: var(--bad-bg); }
-.metric .ctx { color: var(--muted); }
-
-.unlock { padding: 12px 16px; background: var(--done-bg); border-bottom: 1px solid #a8d4b6; display: flex; align-items: center; gap: 12px; }
-.load-error { padding: 12px 16px; }
-.load-error .msg { color: var(--bad); font-weight: 700; margin-bottom: 6px; }
-.load-error pre { margin: 6px 0; padding: 8px 10px; background: var(--cell); border: 1px solid var(--line); overflow-x: auto; font-size: 13px; }
-
 .console { display: flex; flex-direction: column; }
 .console-input { padding: 8px 10px; border-bottom: 1px solid var(--line); flex: none; }
 #scratch { width: 100%; height: 110px; resize: vertical; font-size: 13.5px; padding: 6px 8px; border: 1px solid var(--line-strong); background: var(--cell); border-radius: 3px; }
 .console-actions { display: flex; gap: 10px; align-items: center; margin-top: 5px; }
 .console-output { margin: 0; padding: 8px 12px; font-size: 13.5px; white-space: pre-wrap; flex: 1; }
 .console-output.err { color: var(--bad); }
-
-/* the line an error came from, and the variables at that point */
-
-.CodeMirror .cm-error-line, .CodeMirror .cm-error-line.CodeMirror-activeline-background { background: var(--bad-bg); }
-.CodeMirror .cm-error-gutter .CodeMirror-linenumber { color: var(--bad); font-weight: 700; }
-.cm-error-widget { margin: 0 0 2px 4px; padding: 1px 8px; border-left: 3px solid var(--bad); background: var(--bad-bg); color: var(--bad); font: 12.5px/1.5 var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.vars { margin: 8px 0; }
-.vars .frame { margin: 4px 0; border: 1px solid var(--line); background: var(--cell); }
-.vars .frame > summary { cursor: pointer; padding: 4px 8px; font-size: 13px; }
-.vars .frame > .muted { padding: 0 8px 6px; }
-.vars-table { border-collapse: collapse; width: 100%; font: 12.5px/1.45 var(--mono); }
-.vars-table td { padding: 2px 8px; border-top: 1px solid var(--line); vertical-align: top; }
-.vars-table .vname { white-space: nowrap; color: var(--muted); width: 1%; }
-.vars-table .vval { white-space: pre-wrap; word-break: break-all; }

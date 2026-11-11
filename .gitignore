@@ -8,11 +8,14 @@ web/sql/data.json
 web/sql/store.db
 web/implementation/problems.json
 web/implementation/py/
+web/patterns/patterns.json
+web/patterns/py/
 
 # the terminal versions: the SQL database and history, your implementation solutions
 categories/sql/store.db
 categories/sql/.history
 categories/implementation/solutions/
+categories/patterns/solutions/
 
 # the local database (./serve.py)
 instance/

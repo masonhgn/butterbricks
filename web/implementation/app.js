@@ -22,54 +22,9 @@ function md(text) {
   return box;
 }
 
-//python runs in a web worker (worker.js); a test that runs far past its limit is stopped by killing the worker
+//python runs in a worker (../pyrun.js); errors marks the line an error came from
 
-let worker, workerReady, nextCall = 0;
-const pending = new Map();
-
-function startWorker() {
-  worker = new Worker("worker.js?v=bb-1");
-  worker.onmessage = ({ data }) => {
-    const p = pending.get(data.id);
-    if (!p) return;
-    pending.delete(data.id);
-    clearTimeout(p.timer);
-    if (data.error !== undefined) p.reject(new Error(data.error));
-    else p.resolve(data.value);
-  };
-  worker.onerror = (e) => pyStatus("error", "Python failed to load");
-  pyStatus("busy", "Loading Python…");
-  workerReady = call("init", { files: S.files }).then((version) => {
-    pyStatus("ready", `Python ${version} ready`);
-  }, (e) => {
-    pyStatus("error", "Python failed to load");
-    throw e;
-  });
-}
-
-function call(op, args, timeout) {
-  return new Promise((resolve, reject) => {
-    const id = nextCall++;
-    const p = { resolve, reject };
-    if (timeout) p.timer = setTimeout(() => {
-      pending.delete(id);
-      worker.terminate();
-      for (const q of pending.values()) { clearTimeout(q.timer); q.reject(new Error("Python was restarted")); }
-      pending.clear();
-      startWorker();
-      const err = new Error("killed");
-      err.killed = true;
-      reject(err);
-    }, timeout);
-    pending.set(id, p);
-    worker.postMessage({ id, op, args });
-  });
-}
-
-async function python(op, args, timeout) {
-  await workerReady;
-  return call(op, args, timeout);
-}
+let py, errors;
 
 function pyStatus(kind, text) {
   const s = $("py-status");
@@ -150,7 +105,7 @@ function openProblem(key) {
   meta.append(el("span", "chip", `~${problem.minutes} min`));
   for (const t of problem.tags) meta.append(el("span", "chip", esc(t)));
 
-  clearErrorLine();
+  errors.clear();
   cm.setValue(storage(codeKey(problem.key)) ?? problem.starter);
   cm.clearHistory();
   $("notes").value = storage(notesKey(problem.key)) || "";
@@ -315,7 +270,7 @@ async function runTests(mode) {
   if (mode === "submit" && !(await requireSignIn("Sign in to submit. Your progress is saved to your account."))) return;
   saveCode();
   setBusy(true);
-  clearErrorLine();
+  errors.clear();
   showTab("bottom", "results");
   const problem = S.problem, part = S.part;
   const args = { key: problem.key, part, mode, source: cm.getValue() };
@@ -325,52 +280,12 @@ async function runTests(mode) {
   list.innerHTML = "";
   summary.hidden = false;
   summary.className = "results-summary running";
-  summary.textContent = workerReadyDone ? "Loading your code…" : "Waiting for Python to load…";
+  summary.textContent = py.readyDone ? "Loading your code…" : "Waiting for Python to load…";
 
   try {
-    let plan = await python("prepare", args, 60000);
-    if (plan.error) {
-      summary.className = "results-summary fail";
-      summary.textContent = "Your code didn't load";
-      const box = el("div", "load-error");
-      box.append(el("div", "msg", esc(plan.error)));
-      if (plan.details.length) box.append(el("pre", "", esc(plan.details.join("\n"))));
-      if (plan.where?.frames.length) box.append(variablesPanel(plan.where));
-      list.append(box);
-      showErrorLine(plan.where, plan.error);
-      return;
-    }
-    const rows = plan.tests.map((t) => {
-      const row = resultRow({ ...t, status: "pending" });
-      list.append(row);
-      return row;
-    });
-    summary.textContent = `Running ${plural(plan.tests.length, "test")}…`;
-
-    const results = [];
-    let firstFailShown = false;
-    for (let i = 0; i < plan.tests.length; i++) {
-      const t = plan.tests[i];
-      rows[i].replaceWith(rows[i] = resultRow({ ...t, status: "running" }));
-      let r;
-      const hard = Math.round(t.time_limit * 3 + 8);
-      try {
-        r = await python("run", { i }, hard * 1000);
-      } catch (e) {
-        if (!e.killed) throw e;
-        r = { ...t, status: "killed", message: `stopped after ${hard}s; the limit is ${t.time_limit}s`,
-              details: ["Probably an infinite loop, or an approach that's far too slow for this input size."],
-              elapsed: hard, metrics: [], notes: [], stdout: "" };
-        summary.textContent = "Restarting Python after a stuck test…";
-        if (i + 1 < plan.tests.length) await python("prepare", args, 60000);
-      }
-      results.push(r);
-      const open = r.status !== "pass" && !firstFailShown;
-      firstFailShown ||= open;
-      if (r.where && !errorMark) showErrorLine(r.where, r.message);
-      rows[i].replaceWith(rows[i] = resultRow(r, open));
-      summary.textContent = `Running… ${results.length} / ${plan.tests.length}`;
-    }
+    const run = await runTestPlan({ py, args, list, summary, errors, info: (r) => testInfo(r.part, r.name) });
+    if (run.loadError) return;
+    const results = run.results;
     finish(problem, part, mode, results);
   } catch (e) {
     summary.className = "results-summary fail";
@@ -381,14 +296,8 @@ async function runTests(mode) {
 }
 
 function finish(problem, part, mode, results) {
-  const passed = results.filter((r) => r.status === "pass").length;
-  const total = results.length;
-  const secs = results.reduce((s, r) => s + (r.elapsed || 0), 0);
   const summary = $("results-summary");
-  const all = passed === total;
-  summary.className = `results-summary ${all ? "pass" : "fail"}`;
-  const kind = mode === "submit" ? "tests" : "sample tests";
-  summary.innerHTML = `${all ? "✓" : "✗"} ${passed} / ${total} ${kind} passed <span class="muted small">${secs.toFixed(2)}s</span>`;
+  const all = summarizeRun(summary, results, mode);
   if (!all || mode !== "submit") {
     if (all) {
       const go = el("button", "btn small primary", "Submit");
@@ -417,115 +326,20 @@ function finish(problem, part, mode, results) {
   $("results").prepend(banner);
 }
 
-const ICONS = { pass: "✓", fail: "✗", error: "!", slow: "⏱", killed: "⏱", pending: "·", running: "◌", skipped: "–" };
-
-function resultRow(r, open = false) {
-  const row = el("div", `test-row st-${r.status}`);
-  const head = el("button", "test-head");
-  const time = r.elapsed !== undefined ? `${r.elapsed.toFixed(3)}s` : "";
-  head.innerHTML = `<span class="icon">${ICONS[r.status]}</span>` +
-    `<span class="tname">${esc(r.name)}${r.hidden ? '<span class="badge">hidden</span>' : ""}</span>` +
-    `<span class="tpart">part ${r.part}</span><span class="time">${time}</span>`;
-  row.append(head);
-  if (r.status === "pending" || r.status === "running") return row;
-
-  const body = el("div", "test-body");
-  body.hidden = !open;
-  head.onclick = () => {
-    body.hidden = !body.hidden;
-    if (!body.hidden && r.where) showErrorLine(r.where, r.message);
-  };
-  const info = testInfo(r.part, r.name);
-  if (r.message) body.append(el("div", "msg", esc(r.message)));
-  if (r.details && r.details.length) body.append(el("pre", "", esc(r.details.join("\n"))));
-  if (r.where?.frames.length) body.append(variablesPanel(r.where));
-  if (r.metrics && r.metrics.length) {
-    const m = el("div", "metrics");
-    for (const x of r.metrics) {
-      m.append(el("span", `metric ${x.target == null ? "" : x.ok ? "ok" : "bad"}`,
-        `${esc(x.name)}: <b>${esc(x.value)}</b>${x.context ? ` <span class="ctx">(${esc(x.context)})</span>` : ""}`));
-    }
-    body.append(m);
-  }
-  if (r.notes && r.notes.length) body.append(el("div", "muted small", esc(r.notes.join(" · "))));
-  if (info.description) body.append(el("div", "muted small", esc(info.description)));
-  if (info.preview && info.preview.length) {
-    body.append(el("div", "label", "Input"));
-    body.append(highlighted(info.preview.join("\n"), "python"));
-  } else if (r.hidden) {
-    body.append(el("div", "muted small", "Hidden test: the input isn't shown."));
-  }
-  if (r.stdout) {
-    body.append(el("div", "label", "Your output (print)"));
-    body.append(el("pre", "", esc(r.stdout)));
-  }
-  if (!body.children.length) body.append(el("div", "muted small", "Passed."));
-  row.append(body);
-  return row;
-}
-
-//the line an error came from, marked in red in the editor with the error message under it
-
-let errorMark = null;
-
-function clearErrorLine() {
-  if (!errorMark) return;
-  cm.removeLineClass(errorMark.handle, "background", "cm-error-line");
-  cm.removeLineClass(errorMark.handle, "gutter", "cm-error-gutter");
-  errorMark.widget.clear();
-  errorMark = null;
-}
-
-function showErrorLine(where, message) {
-  clearErrorLine();
-  const n = (where?.line ?? 0) - 1;
-  if (n < 0 || n >= cm.lineCount()) return;
-  const handle = cm.addLineClass(n, "background", "cm-error-line");
-  cm.addLineClass(handle, "gutter", "cm-error-gutter");
-  const widget = cm.addLineWidget(handle, el("div", "cm-error-widget", esc(message || "error")));
-  errorMark = { handle, widget };
-  cm.scrollIntoView({ line: n, ch: 0 }, 80);
-}
-
-// gdb-style: every frame of the user's code the error passed through, innermost first, with its variables
-function variablesPanel(where) {
-  const box = el("div", "vars");
-  box.append(el("div", "label", "Variables when the error happened"));
-  [...where.frames].reverse().forEach((f, i) => {
-    const frame = el("details", "frame");
-    frame.open = i === 0;
-    frame.append(el("summary", "", `<code>${esc(f.name)}</code> <span class="muted small">line ${f.line}${i === 0 ? ", where it failed" : ", calling the frame above"}</span>`));
-    if (f.vars.length) {
-      const table = el("table", "vars-table");
-      for (const [name, value] of f.vars) {
-        const tr = el("tr");
-        tr.append(el("td", "vname", esc(name)), el("td", "vval", esc(value)));
-        table.append(tr);
-      }
-      frame.append(table);
-    } else {
-      frame.append(el("div", "muted small", f.name === "<module>" ? "module level (not listed)" : "no variables"));
-    }
-    if (f.more) frame.append(el("div", "muted small", `… and ${plural(f.more, "more variable")}`));
-    box.append(frame);
-  });
-  return box;
-}
-
 async function runScratch() {
   if (S.running) return;
   saveCode();
   storage(scratchKey(S.problem.key), $("scratch").value);
   setBusy(true);
-  clearErrorLine();
+  errors.clear();
   const out = $("scratch-output");
   out.className = "console-output muted";
   out.textContent = "Running…";
   try {
-    const r = await python("scratch", { source: cm.getValue(), snippet: $("scratch").value }, 20000);
+    const r = await py.call("scratch", { source: cm.getValue(), snippet: $("scratch").value }, 20000);
     out.className = `console-output${r.ok ? "" : " err"}`;
     out.textContent = r.output || (r.ok ? "(no output; use print)" : "");
-    if (r.where) showErrorLine(r.where, r.output.trim().split("\n").pop());
+    if (r.where) errors.show(r.where, r.output.trim().split("\n").pop());
   } catch (e) {
     out.className = "console-output err";
     out.textContent = e.killed ? "Stopped after 20s. Python was restarted." : e.message;
@@ -535,8 +349,6 @@ async function runScratch() {
 }
 
 //startup
-
-let workerReadyDone = false;
 
 async function main() {
   cm = CodeMirror($("editor"), {
@@ -552,6 +364,7 @@ async function main() {
       "Cmd-/": "toggleComment",
     }),
   });
+  errors = errorLine(cm);
   let saveTimer;
   cm.on("change", () => { clearTimeout(saveTimer); saveTimer = setTimeout(saveCode, 400); });
 
@@ -565,8 +378,7 @@ async function main() {
   }
   S.files = data.files;
   S.problems = data.problems;
-  startWorker();
-  workerReady.then(() => { workerReadyDone = true; }, () => {});
+  py = startPython({ base: "/implementation/", files: S.files, onStatus: pyStatus });
 
   for (const t of document.querySelectorAll(".tab")) {
     t.onclick = () => showTab(t.closest("#left-tabs") ? "left" : "bottom", t.dataset.tab);
@@ -580,7 +392,7 @@ async function main() {
   $("notes").addEventListener("input", () => storage(notesKey(S.problem.key), $("notes").value));
   $("btn-reveal").onclick = () => { storage(revealKey(S.problem.key), "1"); renderSolution(); };
   armed($("btn-reset-code"), "Click again to replace your code", () => {
-    clearErrorLine();
+    errors.clear();
     cm.setValue(S.problem.starter);
     saveCode();
   });

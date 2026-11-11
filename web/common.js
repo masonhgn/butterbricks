@@ -263,8 +263,9 @@ async function loadCatalog() {
   return catalogLoading;
 }
 
-// how much of each problem is done: 1 or 0 for a SQL challenge, the number of solved parts for an implementation one
+// how much of each problem is done: 1 or 0 for a pattern problem or SQL challenge, solved parts for an implementation one
 const DONE = {
+  patterns: () => { const solved = storedJson("butterbricks:patterns:progress", {}).solved || {}; return (key) => (solved[key] ? 1 : 0); },
   sql: () => { const solved = new Set(storedJson("butterbricks:sql:progress", {}).solved || []); return (key) => (solved.has(key) ? 1 : 0); },
   implementation: () => { const solved = storedJson("butterbricks:implementation:progress", {}).solved || {}; return (key) => (solved[key] || []).length; },
 };
@@ -326,7 +327,10 @@ const ACTIVITY_KEY = "butterbricks:activity";
 const XP_RULES = {
   sqlPerLevel: 10,      // a SQL challenge is worth 10 XP times its level: Level 1 is 10, Level 10 is 100
   implPart: 100,        // each implementation part
-  implProblemBonus: 150 // on top, for finishing every part of a problem
+  implProblemBonus: 150, // on top, for finishing every part of a problem
+  patternRole: { example: 5, completion: 10, twin: 20, variation: 30, stretch: 40, review: 20 },
+  brickLaid: 50,        // on top, for laying a pattern brick
+  drill: 5,             // a recognition drill answered right (pattern and signal), the first time
 };
 const TITLES = ["Fresh Cream", "Churner", "Butter Pat", "Half Stick", "Full Stick", "Butter Block", "Bricklayer",
   "Butter Mason", "Golden Wall", "Butter Tower", "Butter Castle", "Butter Legend"];
@@ -345,7 +349,8 @@ function activityLog() { return storedJson(ACTIVITY_KEY, []); }
 
 // everything the profile shows, from the catalog and this browser's (synced) saves
 function progressStats() {
-  const stats = { xp: 0, sql: { solved: 0, total: 0, levels: [] }, impl: { parts: 0, totalParts: 0, done: 0, problems: [] } };
+  const stats = { xp: 0, sql: { solved: 0, total: 0, levels: [] }, impl: { parts: 0, totalParts: 0, done: 0, problems: [] },
+    patterns: { solved: 0, total: 0, laid: 0, bricks: [], drills: 0 } };
   if (!catalog) return { ...stats, ...levelFor(0) };
   for (const cat of catalog.categories) {
     const done = DONE[cat.key]();
@@ -357,6 +362,22 @@ function progressStats() {
         stats.sql.total += g.problems.length;
         stats.xp += solved * XP_RULES.sqlPerLevel * (gi + 1);
       });
+    } else if (cat.key === "patterns") {
+      const p = storedJson("butterbricks:patterns:progress", {});
+      const solved = p.solved || {}, laid = p.laid || {};
+      for (const g of cat.groups) {
+        const done = g.problems.filter((x) => solved[x.key]);
+        stats.patterns.solved += done.length;
+        stats.patterns.total += g.problems.length;
+        stats.xp += done.reduce((n, x) => n + (XP_RULES.patternRole[x.role] || 0), 0);
+        if (laid[g.variant]) { stats.patterns.laid++; stats.xp += XP_RULES.brickLaid; }
+        stats.patterns.bricks.push({ title: g.title, pattern: g.pattern, variant: g.variant, solved: done.length,
+          total: g.problems.length, laid: !!laid[g.variant], next: (g.problems.find((x) => !solved[x.key]) || g.problems[0]).key });
+      }
+      // reviews aren't in the catalog: each one done moved its brick a stage on
+      stats.xp += XP_RULES.patternRole.review * Object.values(p.reviews || {}).reduce((n, r) => n + r.stage, 0);
+      stats.patterns.drills = Object.values(p.drills || {}).filter((d) => d.ok).length;
+      stats.xp += XP_RULES.drill * stats.patterns.drills;
     } else if (cat.key === "implementation") {
       for (const p of cat.groups.flatMap((g) => g.problems)) {
         const parts = Math.min(done(p.key), p.parts);
@@ -378,12 +399,21 @@ function progressStats() {
   let seconds = 0;
   for (const k of syncedKeys()) if (/:time:/.test(k)) seconds += parseFloat(raw(k)) || 0;
   return { ...stats, ...levelFor(stats.xp), streak, activeDays: days.size, seconds, log,
-    problemsSolved: stats.sql.solved + stats.impl.done };
+    problemsSolved: stats.sql.solved + stats.impl.done + stats.patterns.solved };
 }
 
 // the XP one solve was worth, given the stats with it counted: a SQL challenge by its level, an implementation part
 // ("<problem>#<part>") plus the bonus if it finished the problem
 function solveXp(category, key, stats) {
+  if (category === "patterns-drill") return XP_RULES.drill;
+  if (category === "patterns") {
+    const p = storedJson("butterbricks:patterns:progress", {});
+    const group = catalog.categories.find((c) => c.key === "patterns").groups.find((g) => g.problems.some((x) => x.key === key));
+    if (!group) return XP_RULES.patternRole.review;  // reviews aren't in the catalog
+    const role = group.problems.find((x) => x.key === key).role;
+    const laidNow = p.laid?.[group.variant] && p.laid[group.variant] === p.solved?.[key]?.t;
+    return XP_RULES.patternRole[role] + (laidNow ? XP_RULES.brickLaid : 0);
+  }
   if (category === "sql") {
     const gi = catalog.categories.find((c) => c.key === "sql").groups.findIndex((g) => g.problems.some((p) => p.key === key));
     return gi < 0 ? 0 : XP_RULES.sqlPerLevel * (gi + 1);
@@ -413,6 +443,8 @@ function renderLevelBadge(stats = progressStats()) {
 
 function toast(text) {
   const t = el("div", "toast", esc(text));
+  const showing = document.querySelectorAll(".toast:not(.leaving)").length;
+  t.style.bottom = `${28 + 62 * showing}px`;  // stack, so two at once (a brick laid and a level up) both show
   document.body.append(t);
   setTimeout(() => t.classList.add("leaving"), 4200);
   setTimeout(() => t.remove(), 4800);
@@ -478,6 +510,7 @@ async function flush({ keepalive = false } = {}) {
 // both, timers keep the larger total, and anything else (code, notes, drafts) takes the account's copy
 function combine(key, mine, theirs) {
   try {
+    if (key === "butterbricks:patterns:progress") return mergePatternsProgress(JSON.parse(mine), JSON.parse(theirs));
     if (/:progress$/.test(key)) {
       const a = JSON.parse(mine), b = JSON.parse(theirs);
       if (Array.isArray(b.solved)) b.solved = [...new Set([...(b.solved || []), ...(a.solved || [])])].sort();
@@ -494,6 +527,23 @@ function combine(key, mine, theirs) {
     }
   } catch (e) {}
   return theirs;
+}
+
+// two browsers' Patterns progress: every solve from either (unassisted wins), every reveal, every laid brick (the
+// earliest), each brick's furthest review, and every drill (right wins)
+function mergePatternsProgress(a, b) {
+  const out = { ...b };
+  const map = (k) => ({ ...(a[k] || {}), ...(b[k] || {}) });
+  out.revealed = map("revealed");
+  out.solved = map("solved");
+  for (const [k, v] of Object.entries(a.solved || {})) if (b.solved?.[k] && !v.assisted) out.solved[k] = v;
+  out.laid = map("laid");
+  for (const [k, t] of Object.entries(a.laid || {})) if (b.laid?.[k]) out.laid[k] = Math.min(t, b.laid[k]);
+  out.reviews = map("reviews");
+  for (const [k, r] of Object.entries(a.reviews || {})) if (b.reviews?.[k] && r.stage > b.reviews[k].stage) out.reviews[k] = r;
+  out.drills = map("drills");
+  for (const [k, d] of Object.entries(a.drills || {})) if (d.ok) out.drills[k] = d;
+  return JSON.stringify(out);
 }
 
 function wipeLocal() {

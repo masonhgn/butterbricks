@@ -1,10 +1,10 @@
-"""the functions the browser's web worker calls through Pyodide. Arguments and return values are json strings"""
+"""the functions the browser's web worker (web/pyworker.js) calls through Pyodide for the Implementation category.
+Arguments and return values are json strings"""
 
 import json
 
+from framework import runner
 from problems import get
-
-from . import runner
 
 runner.TIME_SCALE = 2.5
 

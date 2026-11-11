@@ -1,7 +1,7 @@
 # The Patterns category: taxonomy and naming
 
-Status: **draft for review**. Nothing here is built yet. This document fixes the vocabulary, the names, and the order
-before any problem is written, because renaming a variant after problems, tests and saved progress refer to it is
+Status: **Arrays & Hashing is built** (categories/patterns/bricks/arrays_hashing.py); the rest is the plan. This
+document fixes the vocabulary, the names, and the order before any problem is written, because renaming a variant after problems, tests and saved progress refer to it is
 expensive, and because the names are part of what the learner takes away.
 
 ## 1. The model
@@ -25,8 +25,9 @@ Roles, in the order a learner meets them:
 | **review** | A held-back twin that returns on a spaced schedule (1, 3, 7, 21 days) | Spacing; never the same problem twice |
 | **drill** | Reads a statement and names the variant, then the signal that gave it away; no code | Recognition, the skill interviews actually test |
 
-A variant counts as **laid** when its twin and its variation are solved without revealing the solution. Anyone can
-**test out** of a variant by solving its variation cold (worked examples slow down people who already know the idea).
+A variant counts as **laid** when its variation or its stretch is solved without revealing that problem's solution
+first. Anyone can **test out** of a variant by solving its variation cold (worked examples slow down people who already
+know the idea); the stretch is a second way in for someone who revealed the variation's solution.
 The path is **recommended, not locked**: prerequisites decide the suggested order and what the review queue offers, but
 every variant can be opened at any time.
 

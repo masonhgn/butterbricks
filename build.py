@@ -9,7 +9,7 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(HERE, "web")
-CATEGORIES = ["sql", "implementation"]
+CATEGORIES = ["sql", "implementation", "patterns"]
 
 
 def sql_catalog():
@@ -37,12 +37,31 @@ def implementation_catalog():
             "groups": [{"title": None, "problems": problems}]}
 
 
+def patterns_catalog():
+    """one group per variant; review twins aren't listed (they come back through the review queue)"""
+    with open(os.path.join(WEB, "patterns", "patterns.json")) as f:
+        data = json.load(f)
+    groups = []
+    for pattern in data["patterns"]:
+        for v in pattern["variants"]:
+            groups.append({
+                "title": f"{pattern['name']} · {v['name']}", "pattern": pattern["name"], "variant": v["key"],
+                "problems": [{"key": p["key"], "title": p["title"], "role": p["role"], "roleLabel": p["roleLabel"]}
+                             for p in v["problems"] if p["role"] != "review"],
+            })
+    return {"key": "patterns", "title": "Patterns", "unit": "problem",
+            "total": sum(len(g["problems"]) for g in groups),
+            "blurb": "Algorithm patterns, one small idea at a time: learn it, watch it work, then solve problems that "
+                     "change one thing at a time.",
+            "groups": groups}
+
+
 def main():
     for category in CATEGORIES:
         # each script runs from its own directory, so its imports (challenges, problems) resolve as they always have
         subprocess.run([sys.executable, os.path.join(HERE, "categories", category, "build_web.py")], check=True)
     with open(os.path.join(WEB, "catalog.json"), "w") as f:
-        json.dump({"categories": [sql_catalog(), implementation_catalog()]}, f)
+        json.dump({"categories": [patterns_catalog(), sql_catalog(), implementation_catalog()]}, f)
     print("wrote web/catalog.json")
 
 

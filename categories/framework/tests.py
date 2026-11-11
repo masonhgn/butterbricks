@@ -296,3 +296,60 @@ class ScenarioTest(TestCase):
 
     def execute(self, ctx):
         self.fn(ctx)
+
+
+class CallTest(TestCase):
+    """call one function of the user's code with some arguments and compare the result: the shape of most pattern
+    problems. `args` is a tuple, or a function returning one (for big generated inputs). Leave `expect` out to take it
+    from the reference solution. `normalize`, if given, is applied to both sides before comparing (to sort groups whose
+    order doesn't matter, say). `catches` names the common mistake the test is built to catch; a failure says so"""
+
+    kind = "call"
+
+    def __init__(self, name, args, expect=REFERENCE, *, function=None, normalize=None, catches="", **kw):
+        super().__init__(name, **kw)
+        self._args = args
+        self._built = None
+        self.expect = expect
+        self.function = function  # the problem fills this in
+        self.normalize = normalize
+        self.catches = catches
+        self.shown_expect = None  # the expected value as shown in a sample's preview, filled in at build time
+
+    def args(self):
+        if self._built is None:
+            built = self._args() if callable(self._args) else self._args
+            self._built = tuple(built) if isinstance(built, (list, tuple)) else (built,)
+        return self._built
+
+    def label(self):
+        return show_call(self.function, self.args())
+
+    def preview(self):
+        if callable(self._args):
+            return []
+        want = self.shown_expect if self.expect is REFERENCE else show(self.expect)
+        return [self.label() + (f"  →  {want}" if want is not None else "")]
+
+    def summary(self):
+        return {**super().summary(), "catches": self.catches}
+
+    def prepare(self, ctx):
+        if self.expect is REFERENCE:
+            self._want = getattr(ctx.reference, self.function)(*fresh(self.args()))
+        else:
+            self._want = self.expect
+
+    def execute(self, ctx):
+        fn = getattr(ctx.solution, self.function, None)
+        if not callable(fn):
+            raise Fail(f"your code has no function named {self.function}",
+                       [f"The tests call {self.function}(...). Check the name and that it's defined at the top level."])
+        got = fn(*fresh(self.args()))
+        want = self._want
+        g, w = (self.normalize(got), self.normalize(want)) if self.normalize else (got, want)
+        if not same(g, w):
+            details = [self.label(), f"  expected  {show(want)}", f"  got       {show(got)}"]
+            if self.catches:
+                details += ["", f"This test is built to catch a common mistake: {self.catches}"]
+            raise Fail("wrong answer", details)
