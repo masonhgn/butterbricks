@@ -104,6 +104,7 @@ build.py, serve.py         build the site's data; build and run it locally
 butterbricks.py            the terminal version
 web/                       the site: index.html (home), common.css/common.js (shared: problem list, accounts, sync,
                            editor, the pixel look), logo.svg
+tools/pixelart.py          draws the logo and the textures (prints the textures as CSS to paste into common.css)
 web/<category>/            each category's page
 categories/sql/            challenges.py (lessons and challenges), dataset.py (the data), engine.py (the checker)
 categories/implementation/ framework/ (Problem, Part, OpsTest, ScenarioTest, the runner) and problems/ (one file each)

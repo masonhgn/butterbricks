@@ -101,6 +101,35 @@ function highlighted(src, mode) {
   return pre;
 }
 
+//the pixel look for text: render it normally (Times New Roman), then resample it onto a 2px grid. #px-text averages
+//each 2x2 cell first and sharpens the edges, which keeps small text readable; #px-crisp gives hard pixels, for the
+//wordmark. Blocks are built from offset copies of one sample per cell, so they're 2 CSS px at any screen density
+
+(function pixelFilters() {
+  const cell = (source) => `
+    <feFlood x="0" y="0" width="1" height="1" flood-color="#000" result="dot"/>
+    <feComposite in="dot" in2="dot" operator="over" width="2" height="2" result="cell"/>
+    <feTile in="cell" result="grid"/>
+    <feComposite in="${source}" in2="grid" operator="in" result="s"/>
+    <feOffset in="s" dx="1" result="s1"/><feOffset in="s" dy="1" result="s2"/><feOffset in="s" dx="1" dy="1" result="s3"/>
+    <feMerge result="blocks"><feMergeNode in="s"/><feMergeNode in="s1"/><feMergeNode in="s2"/><feMergeNode in="s3"/></feMerge>`;
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("width", "0");
+  svg.setAttribute("height", "0");
+  svg.setAttribute("aria-hidden", "true");
+  svg.style.position = "absolute";
+  svg.innerHTML = `
+    <filter id="px-text" x="0" y="0" width="1" height="1" color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="0.55" result="soft"/>${cell("soft")}
+      <feComponentTransfer in="blocks"><feFuncA type="linear" slope="2.2" intercept="-0.35"/></feComponentTransfer>
+    </filter>
+    <filter id="px-crisp" x="0" y="0" width="1" height="1" color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="0.55" result="soft"/>${cell("soft")}
+      <feComponentTransfer in="blocks"><feFuncA type="discrete" tableValues="0 0 1 1"/></feComponentTransfer>
+    </filter>`;
+  document.body.prepend(svg);
+})();
+
 //editor
 
 // backspace in a line's leading spaces deletes back to the previous indent stop, like LeetCode's editor
@@ -186,7 +215,7 @@ function celebrate(big, ...nodes) {
   if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) confetti(big ? 260 : 120);
 }
 
-// square, unrotated bits, so the confetti looks as pixelated as the rest of the site
+// square, unrotated bits on the same 2px grid as the rest of the site
 function confetti(count) {
   const canvas = document.createElement("canvas");
   canvas.id = "confetti";
@@ -205,7 +234,7 @@ function confetti(count) {
     return {
       x: left ? 0 : innerWidth, y: innerHeight * 0.9,
       vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
-      size: 4 * (1 + Math.floor(Math.random() * 3)), blink: Math.random() * 10,
+      size: 2 * (2 + Math.floor(Math.random() * 4)), blink: Math.random() * 10,
       color: colors[Math.floor(Math.random() * colors.length)],
     };
   });
@@ -219,10 +248,10 @@ function confetti(count) {
       b.vx *= 0.99;
       b.x += b.vx;
       b.y += b.vy;
-      // snap to a 4px grid; every so often a bit "flips" to its thin side, like a sprite turning
+      // snap to a 2px grid; every so often a bit "flips" to its thin side, like a sprite turning
       const thin = Math.floor((t / 90 + b.blink) % 4) === 0;
       ctx.fillStyle = b.color;
-      ctx.fillRect(Math.round(b.x / 4) * 4, Math.round(b.y / 4) * 4, thin ? 4 : b.size, b.size);
+      ctx.fillRect(Math.round(b.x / 2) * 2, Math.round(b.y / 2) * 2, thin ? 2 : b.size, b.size);
     }
     if (t < 3000) requestAnimationFrame(frame);
     else canvas.remove();
@@ -490,7 +519,7 @@ function openAccountBox(reason = "") {
   const backdrop = el("div", "modal-backdrop");
   backdrop.id = "account-box";
   backdrop.innerHTML = `<form class="modal panel" novalidate>
-    <div class="modal-head"><img class="logo" src="${esc(document.querySelector('link[rel="icon"]')?.href || "")}" alt=""><span>Butterbricks</span></div>
+    <div class="modal-head"><img class="logo" src="${esc(document.querySelector('link[rel="icon"]')?.href || "")}" alt=""><span class="wordmark">Butterbricks</span></div>
     <div class="modal-tabs">
       <button type="button" class="on" data-mode="signin">Sign in</button>
       <button type="button" data-mode="signup">Create account</button>
