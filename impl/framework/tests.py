@@ -58,12 +58,18 @@ def shadowed_method(module, obj, name):
     assign = re.compile(rf"\bself\.{re.escape(name)}\s*(?::[^=]*)?=(?!=)")
     lines = linecache.getlines(getattr(module, "__file__", "") or "")
     lineno = next((i for i, line in enumerate(lines, 1) if assign.search(line)), None)
-    details = [f"Your class has a method {name}(), but self.{name} = ... stores a {kind} on the object under the same",
-               f"name, and the object's own attribute wins. So obj.{name}(...) finds the {kind} and tries to call it.",
-               f"Rename the attribute, for example to self._{name}, or give it a more specific name."]
+    if callable(getattr(type(obj), name, None)):
+        message = f"self.{name} is a {kind}, which hides your {name}() method"
+        details = [f"Your class has a method {name}(), but self.{name} = ... stores a {kind} on the object under the same",
+                   f"name, and the object's own attribute wins. So obj.{name}(...) finds the {kind} and tries to call it.",
+                   f"Rename the attribute, for example to self._{name}, or give it a more specific name."]
+    else:
+        message = f"self.{name} is a {kind}, but the tests call {name}() as a method"
+        details = [f"The tests call obj.{name}(...), and your class has no {name}() method, only the attribute self.{name}.",
+                   f"Add the method, and rename the attribute (for example to self._{name}) so it doesn't hide it."]
     if lineno:
         details[:0] = [f"  line {lineno}:  {lines[lineno - 1].strip()}", ""]
-    return Fail(f"self.{name} is a {kind}, which hides your {name}() method",
+    return Fail(message,
                 details, {"line": lineno, "frames": []} if lineno else None)
 
 

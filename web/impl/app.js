@@ -1,7 +1,5 @@
 "use strict";
 
-const $ = (id) => document.getElementById(id);
-
 const S = {
   files: [], problems: [],
   problem: null,       // the open problem's manifest
@@ -12,23 +10,7 @@ const S = {
 
 let cm;
 
-//helpers
-
-const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
-const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; };
-
-function storage(key, value) {
-  try {
-    if (value === undefined) return localStorage.getItem(key);
-    if (value === null) localStorage.removeItem(key);
-    else localStorage.setItem(key, value);
-  } catch (e) { return null; }
-}
-
-function storedJson(key, fallback) {
-  try { return JSON.parse(storage(key)) ?? fallback; } catch (e) { return fallback; }
-}
+//helpers (the shared ones are in ../common.js)
 
 function md(text) {
   const box = el("div", "", marked.parse(text.trim()));
@@ -40,43 +22,13 @@ function md(text) {
   return box;
 }
 
-function highlighted(src) {
-  const pre = el("pre");
-  const code = el("code");
-  CodeMirror.runMode(src, "python", code);
-  pre.append(code);
-  return pre;
-}
-
-// a button that asks for a second click instead of opening a confirm() dialog
-function armed(button, prompt, action) {
-  const label = button.textContent;
-  let timer = null;
-  button.addEventListener("click", () => {
-    if (!timer) {
-      button.textContent = prompt;
-      button.classList.add("danger");
-      timer = setTimeout(reset, 3000);
-      return;
-    }
-    reset();
-    action();
-  });
-  function reset() {
-    clearTimeout(timer);
-    timer = null;
-    button.textContent = label;
-    button.classList.remove("danger");
-  }
-}
-
 //python runs in a web worker (worker.js); a test that runs far past its limit is stopped by killing the worker
 
 let worker, workerReady, nextCall = 0;
 const pending = new Map();
 
 function startWorker() {
-  worker = new Worker("worker.js?v=implquest-1");
+  worker = new Worker("worker.js?v=bb-1");
   worker.onmessage = ({ data }) => {
     const p = pending.get(data.id);
     if (!p) return;
@@ -127,7 +79,7 @@ function pyStatus(kind, text) {
 
 //progress: which parts of which problems are solved, plus code, notes and timers per problem, all in localStorage
 
-const PROGRESS_KEY = "implquest:progress";
+const PROGRESS_KEY = "butterbrick:impl:progress";
 
 function progress() {
   return storedJson(PROGRESS_KEY, { solved: {}, current: null });
@@ -158,12 +110,12 @@ function markSolved(key, part) {
   return first;
 }
 
-const codeKey = (k) => `implquest:code:${k}`;
-const notesKey = (k) => `implquest:notes:${k}`;
-const timeKey = (k) => `implquest:time:${k}`;
-const partKey = (k) => `implquest:part:${k}`;
-const revealKey = (k) => `implquest:revealed:${k}`;
-const scratchKey = (k) => `implquest:scratch:${k}`;
+const codeKey = (k) => `butterbrick:impl:code:${k}`;
+const notesKey = (k) => `butterbrick:impl:notes:${k}`;
+const timeKey = (k) => `butterbrick:impl:time:${k}`;
+const partKey = (k) => `butterbrick:impl:part:${k}`;
+const revealKey = (k) => `butterbrick:impl:revealed:${k}`;
+const scratchKey = (k) => `butterbrick:impl:scratch:${k}`;
 
 //sidebar
 
@@ -299,7 +251,7 @@ function renderSolution() {
   if (!revealed) return;
   body.append(md(S.problem.writeup));
   body.append(el("h3", "", "Reference code"));
-  body.append(highlighted(S.problem.reference));
+  body.append(highlighted(S.problem.reference, "python"));
   const hide = el("button", "btn small", "Hide again");
   hide.onclick = () => { storage(revealKey(S.problem.key), null); renderSolution(); };
   body.append(hide);
@@ -325,40 +277,6 @@ function showTab(side, name) {
     $(`tab-${t.dataset.tab}`).hidden = t.dataset.tab !== name;
   }
   if (side === "left" && name === "notes") $("notes").focus();
-}
-
-function splitter(handle, onMove, onDone) {
-  handle.addEventListener("mousedown", (e) => {
-    e.preventDefault();
-    handle.classList.add("dragging");
-    const move = (ev) => onMove(ev);
-    const up = () => {
-      handle.classList.remove("dragging");
-      document.removeEventListener("mousemove", move);
-      document.removeEventListener("mouseup", up);
-      cm.refresh();
-      onDone();
-    };
-    document.addEventListener("mousemove", move);
-    document.addEventListener("mouseup", up);
-  });
-}
-
-function setupSplitters() {
-  const root = document.documentElement.style;
-  const left = storage("implquest:left-w");
-  const bottom = storage("implquest:results-h");
-  if (left) root.setProperty("--left-w", left);
-  if (bottom) root.setProperty("--results-h", bottom);
-  splitter($("vsplit"), (e) => {
-    const start = $("sidebar").getBoundingClientRect().right;
-    const w = Math.max(280, Math.min(e.clientX - start, window.innerWidth - start - 360));
-    root.setProperty("--left-w", `${w}px`);
-  }, () => storage("implquest:left-w", root.getPropertyValue("--left-w")));
-  splitter($("hsplit"), (e) => {
-    const h = Math.max(90, Math.min(window.innerHeight - e.clientY, window.innerHeight - 260));
-    root.setProperty("--results-h", `${h}px`);
-  }, () => storage("implquest:results-h", root.getPropertyValue("--results-h")));
 }
 
 //timer: time spent per problem, counted while the tab is visible and not paused
@@ -492,6 +410,7 @@ function finish(problem, part, mode, results) {
     return;
   }
   const first = markSolved(problem.key, part);
+  celebrate(part === problem.parts.length, summary, document.querySelector(".editor"));
   renderSidebar();
   renderStatement();
   const banner = el("div", "unlock");
@@ -543,7 +462,7 @@ function resultRow(r, open = false) {
   if (info.description) body.append(el("div", "muted small", esc(info.description)));
   if (info.preview && info.preview.length) {
     body.append(el("div", "label", "Input"));
-    body.append(highlighted(info.preview.join("\n")));
+    body.append(highlighted(info.preview.join("\n"), "python"));
   } else if (r.hidden) {
     body.append(el("div", "muted small", "Hidden test: the input isn't shown."));
   }
@@ -630,42 +549,19 @@ async function runScratch() {
 
 let workerReadyDone = false;
 
-//backspace in a line's leading spaces deletes back to the previous indent stop, like LeetCode's editor
-function backspaceIndent(c) {
-  const ranges = c.listSelections();
-  if (ranges.some((r) => !r.empty())) return CodeMirror.Pass;
-  const unit = c.getOption("indentUnit");
-  const cuts = [];
-  for (const { head } of ranges) {
-    if (head.ch === 0 || !/^ +$/.test(c.getLine(head.line).slice(0, head.ch))) return CodeMirror.Pass;
-    cuts.push({ line: head.line, from: (Math.ceil(head.ch / unit) - 1) * unit, to: head.ch });
-  }
-  c.operation(() => {
-    for (const { line, from, to } of cuts.reverse()) c.replaceRange("", { line, ch: from }, { line, ch: to }, "+delete");
-  });
-}
-
 async function main() {
   cm = CodeMirror($("editor"), {
+    ...EDITOR_DEFAULTS,
     mode: "python",
-    lineNumbers: true,
-    indentUnit: 4,
-    tabSize: 4,
-    matchBrackets: true,
     autoCloseBrackets: true,
-    styleActiveLine: true,
-    lineWrapping: true,
-    extraKeys: {
-      Tab: (c) => (c.somethingSelected() ? c.indentSelection("add") : c.replaceSelection("    ")),
-      Backspace: backspaceIndent,
-      "Shift-Tab": (c) => c.indentSelection("subtract"),
+    extraKeys: editorKeys({
       "Ctrl-Enter": () => runTests("run"),
       "Cmd-Enter": () => runTests("run"),
       "Shift-Ctrl-Enter": () => runTests("submit"),
       "Shift-Cmd-Enter": () => runTests("submit"),
       "Ctrl-/": "toggleComment",
       "Cmd-/": "toggleComment",
-    },
+    }),
   });
   let saveTimer;
   cm.on("change", () => { clearTimeout(saveTimer); saveTimer = setTimeout(saveCode, 400); });
@@ -674,7 +570,7 @@ async function main() {
   try {
     data = await (await fetch("problems.json")).json();
   } catch (e) {
-    $("statement").innerHTML = "<p>Couldn't load <code>problems.json</code>. Run <code>python3 build_web.py</code> first, then serve the <code>web</code> folder.</p>";
+    $("statement").innerHTML = "<p>Couldn't load <code>problems.json</code>. Run <code>./serve.py</code> from the repo root, which builds it first.</p>";
     pyStatus("error", "No problems.json");
     return;
   }
@@ -701,13 +597,13 @@ async function main() {
   });
   armed($("btn-reset-progress"), "Click again to erase everything", () => {
     try {
-      for (const k of Object.keys(localStorage)) if (k.startsWith("implquest:")) localStorage.removeItem(k);
+      for (const k of Object.keys(localStorage)) if (k.startsWith("butterbrick:impl:")) localStorage.removeItem(k);
     } catch (e) {}
     openProblem(S.problems[0].key);
   });
   $("btn-timer").onclick = () => {
     S.timer.paused = !S.timer.paused;
-    storage("implquest:timer-paused", S.timer.paused ? "1" : null);
+    storage("butterbrick:impl:timer-paused", S.timer.paused ? "1" : null);
     renderTimer();
   };
   armed($("btn-timer-reset"), "Reset timer?", () => { storage(timeKey(S.problem.key), "0"); renderTimer(); });
@@ -719,10 +615,11 @@ async function main() {
   });
   window.addEventListener("beforeunload", () => S.problem && saveCode());
 
-  S.timer.paused = storage("implquest:timer-paused") === "1";
+  S.timer.paused = storage("butterbrick:impl:timer-paused") === "1";
   setInterval(tick, 1000);
-  setupSplitters();
+  setupSplitters("impl", () => cm.refresh());
+  storage("butterbrick:last-track", "impl");
   openProblem(progress().current);
 }
 
-main();
+unlock().then(main);

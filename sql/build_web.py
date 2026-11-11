@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""builds the data the static web version needs: web/data.json (lessons, challenges, schema) and web/sqlquest.db"""
+"""builds what the SQL track of the site needs: web/sql/data.json (lessons, challenges, schema) and web/sql/sqlquest.db"""
 
 import json
 import os
@@ -11,7 +11,7 @@ from engine import Sandbox
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(HERE, "sqlquest.db")
-WEB = os.path.join(HERE, "web")
+WEB = os.path.join(HERE, "..", "web", "sql")
 
 
 def tables_used(sql, names):
@@ -46,7 +46,7 @@ def main():
     with open(os.path.join(WEB, "data.json"), "w") as f:
         json.dump(data, f)
     shutil.copyfile(DB_PATH, os.path.join(WEB, "sqlquest.db"))
-    print(f"wrote web/data.json ({len(CHALLENGES)} challenges) and web/sqlquest.db")
+    print(f"wrote web/sql/data.json ({len(CHALLENGES)} challenges) and web/sql/sqlquest.db")
 
 
 if __name__ == "__main__":

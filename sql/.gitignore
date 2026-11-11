@@ -1,5 +1,0 @@
-sqlquest.db
-.sqlquest_history
-__pycache__/
-web/data.json
-web/sqlquest.db

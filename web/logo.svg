@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Butterbrick</title>
+  <!-- a stick of butter seen from above and to the right, its front face laid as a brick wall -->
+  <g stroke="#8a5a12" stroke-width="2.4" stroke-linejoin="round">
+    <path d="M6 27 L14 18 H59 L51 27 Z" fill="#fff0bf"/>
+    <path d="M51 27 L59 18 V46 L51 55 Z" fill="#eebb45"/>
+    <rect x="6" y="27" width="45" height="28" fill="#f8d570"/>
+  </g>
+  <!-- mortar: three courses in running bond, continued along the side -->
+  <g stroke="#b98222" stroke-width="1.6" stroke-linecap="round" fill="none">
+    <path d="M7.2 36.3 H49.8 M7.2 45.7 H49.8"/>
+    <path d="M21 27.8 V36.3 M36 27.8 V36.3"/>
+    <path d="M13.5 36.3 V45.7 M28.5 36.3 V45.7 M43.5 36.3 V45.7"/>
+    <path d="M21 45.7 V54 M36 45.7 V54"/>
+    <path d="M52 35.2 L58 28.5 M52 44.6 L58 37.9"/>
+  </g>
+  <!-- soft butter spilling over the front edge -->
+  <path d="M33 25.6 H49.6 V28.6 c0 1.1 -.9 1.8 -2 1.8 h-1 c-1.1 0 -1.9 .8 -1.9 1.9 V35.4 a3.1 3.1 0 0 1 -6.2 0 V32.3 c0 -1.1 -.8 -1.9 -1.9 -1.9 H35 c-1.1 0 -2 -.7 -2 -1.8 Z" fill="#fff0bf"/>
+  <path d="M49.6 27 V28.6 c0 1.1 -.9 1.8 -2 1.8 h-1 c-1.1 0 -1.9 .8 -1.9 1.9 V35.4 a3.1 3.1 0 0 1 -6.2 0 V32.3 c0 -1.1 -.8 -1.9 -1.9 -1.9 H35 c-1.1 0 -2 -.7 -2 -1.8 V27" fill="none" stroke="#8a5a12" stroke-width="2.4" stroke-linejoin="round"/>
+  <!-- shine on the top face -->
+  <path d="M17 21.6 H33" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" opacity=".85"/>
+</svg>

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""rebuilds the web data, then serves web/ with caching turned off, so edits (and other sites that used the same
+"""rebuilds the site's data, then serves web/ with caching turned off, so edits (and other sites that used the same
 port before) never leave stale files in the browser"""
 
 import functools
@@ -7,7 +7,7 @@ import http.server
 import os
 import sys
 
-import build_web
+import build
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -23,9 +23,9 @@ class NoCache(http.server.SimpleHTTPRequestHandler):
 
 def main():
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
-    build_web.main()
+    build.main()
     handler = functools.partial(NoCache, directory=os.path.join(HERE, "web"))
-    print(f"serving on http://localhost:{port}")
+    print(f"serving on http://localhost:{port}", flush=True)
     http.server.ThreadingHTTPServer(("", port), handler).serve_forever()
 
 
