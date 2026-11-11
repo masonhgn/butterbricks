@@ -16,7 +16,7 @@ const PREFIX = "butterbricks:";
 const SYNC_USER = "butterbricks:sync:user";        // the account this browser's saves belong to
 const SYNC_PENDING = "butterbricks:sync:pending";  // keys changed here that the account doesn't have yet
 // what stays in this browser: pane sizes, the timer's paused state, and the sync bookkeeping itself
-const LOCAL_ONLY = /^butterbricks:(migrated$|sync:|sidebar:|[a-z]+:(left-w|results-h|timer-paused)$)/;
+const LOCAL_ONLY = /^butterbricks:(migrated$|sync:|sidebar:|home:|[a-z]+:(left-w|results-h|timer-paused)$)/;
 const isSynced = (key) => key.startsWith(PREFIX) && !LOCAL_ONLY.test(key);
 
 function raw(key, value) {
@@ -253,9 +253,8 @@ function confetti(count) {
   requestAnimationFrame(frame);
 }
 
-//the problem list: every category's problems in one sidebar, from catalog.json (built by build.py). A category's page
-//calls showProblemList with its own category and the open problem; picking a problem in another category opens that
-//category's page at /<category>/#<problem>
+//the problem list, from catalog.json (built by build.py). The home page lists every problem; a category's page calls
+//showProblemList, which lists that category's problems in the sidebar, with a link back to the home page
 
 let catalog = null;
 
@@ -285,50 +284,36 @@ function setProblemHash(key) {
 function showProblemList(category, currentKey, onPick) {
   const bar = $("sidebar");
   if (!catalog || !bar) return;
-  const openKey = "butterbricks:sidebar:open";
-  const open = new Set(storedJson(openKey, [category]));
-  open.add(category);
+  const cat = catalog.categories.find((c) => c.key === category);
+  if (!cat) return;
+  const done = DONE[cat.key]();
   bar.innerHTML = "";
-  for (const cat of catalog.categories) {
-    const done = DONE[cat.key]();
-    const isOpen = open.has(cat.key);
-    const head = el("button", `cat-head${cat.key === category ? " here" : ""}`,
-      `<span class="caret">${isOpen ? "▾" : "▸"}</span><span class="cat-title">${esc(cat.title)}</span>` +
-      `<span class="cat-count">${categoryDone(cat)}/${cat.total}</span>`);
-    head.title = cat.blurb;
-    head.onclick = () => {
-      if (isOpen && cat.key !== category) open.delete(cat.key); else open.add(cat.key);
-      storage(openKey, JSON.stringify([...open]));
-      showProblemList(category, currentKey, onPick);
-    };
-    bar.append(head);
-    if (!isOpen) continue;
-    for (const group of cat.groups) {
-      if (group.title) {
-        const n = group.problems.filter((p) => done(p.key)).length;
-        bar.append(el("h3", "group-head", `<span>${esc(group.title)}</span><span>${n}/${group.problems.length}</span>`));
+  const head = el("div", "cat-head", `<a class="back-link" href="/">‹ All problems</a>` +
+    `<span class="cat-line"><span class="cat-title">${esc(cat.title)}</span><span class="cat-count">${categoryDone(cat)}/${cat.total}</span></span>`);
+  head.title = cat.blurb;
+  bar.append(head);
+  for (const group of cat.groups) {
+    if (group.title) {
+      const n = group.problems.filter((p) => done(p.key)).length;
+      bar.append(el("h3", "group-head", `<span>${esc(group.title)}</span><span>${n}/${group.problems.length}</span>`));
+    }
+    for (const p of group.problems) {
+      const here = p.key === currentKey;
+      let item;
+      if (p.parts) {
+        item = el("button", `problem-link${here ? " current" : ""}${done(p.key) === p.parts ? " complete" : ""}`,
+          `<span class="name">${esc(p.title)}</span><span class="sub">${esc(p.difficulty)} · ${plural(p.parts, "part")} · ~${p.minutes} min</span>`);
+        const pips = el("span", "pips");
+        for (let i = 0; i < p.parts; i++) pips.append(el("span", `pip${i < done(p.key) ? " done" : ""}`));
+        item.append(pips);
+        item.title = p.summary;
+      } else {
+        const solved = done(p.key) > 0;
+        item = el("button", `challenge-link${solved ? " solved" : ""}${here ? " current" : ""}`,
+          `<span class="mark">${solved ? "✓" : "○"}</span><span class="num">${p.num}</span><span>${esc(p.title)}</span>`);
       }
-      for (const p of group.problems) {
-        const here = cat.key === category && p.key === currentKey;
-        let item;
-        if (p.parts) {
-          item = el("button", `problem-link${here ? " current" : ""}${done(p.key) === p.parts ? " complete" : ""}`,
-            `<span class="name">${esc(p.title)}</span><span class="sub">${esc(p.difficulty)} · ${plural(p.parts, "part")} · ~${p.minutes} min</span>`);
-          const pips = el("span", "pips");
-          for (let i = 0; i < p.parts; i++) pips.append(el("span", `pip${i < done(p.key) ? " done" : ""}`));
-          item.append(pips);
-          item.title = p.summary;
-        } else {
-          const solved = done(p.key) > 0;
-          item = el("button", `challenge-link${solved ? " solved" : ""}${here ? " current" : ""}`,
-            `<span class="mark">${solved ? "✓" : "○"}</span><span class="num">${p.num}</span><span>${esc(p.title)}</span>`);
-        }
-        item.onclick = () => {
-          if (cat.key === category) onPick(p.key);
-          else location.href = `/${cat.key}/#${encodeURIComponent(p.key)}`;
-        };
-        bar.append(item);
-      }
+      item.onclick = () => onPick(p.key);
+      bar.append(item);
     }
   }
   bar.querySelector(".current")?.scrollIntoView({ block: "nearest" });

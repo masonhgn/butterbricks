@@ -42,8 +42,10 @@ requests must be same-origin JSON.
 
 ## The site
 
-The sidebar lists every problem by category; each category's page fits its kind of problem, and a link like
-`/sql/#distinct_categories` or `/implementation/#kv-store` opens one directly. Drag the dividers to resize the panes.
+The home page lists every problem, tagged by category, with a search box (`/` focuses it; it searches titles,
+levels, summaries and tags) and a filter per category. Opening a problem shows its category's page, whose sidebar lists
+that category's problems; a link like `/sql/#distinct_categories` or `/implementation/#kv-store` opens one directly.
+Drag the dividers to resize the panes.
 
 ### SQL
 
@@ -102,9 +104,9 @@ commands are `.hint` `.expected` `.solution` `.lesson` `.prompt` `.tables` `.sch
 app.py                     the server: the site, accounts and saves
 build.py, serve.py         build the site's data; build and run it locally
 butterbricks.py            the terminal version
-web/                       the site: index.html (home), common.css/common.js (shared: problem list, accounts, sync,
+web/                       the site: index.html (home: every problem), common.css/common.js (shared: the sidebar, accounts, sync,
                            editor, the pixel look), logo.svg
-tools/pixelart.py          draws the logo and the parchment texture (prints it as CSS to paste into common.css)
+tools/pixelart.py          draws the logo
 web/<category>/            each category's page
 categories/sql/            challenges.py (lessons and challenges), dataset.py (the data), engine.py (the checker)
 categories/implementation/ framework/ (Problem, Part, OpsTest, ScenarioTest, the runner) and problems/ (one file each)

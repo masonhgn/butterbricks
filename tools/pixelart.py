@@ -1,14 +1,10 @@
 #!/usr/bin/env python3
-"""draws the site's pixel art: web/logo.svg (three sticks of butter, stacked) and the parchment texture, which it
-prints as a CSS custom property to paste into web/common.css.
+"""draws the site's pixel art: web/logo.svg, three sticks of butter, stacked.
 
 Everything is drawn pixel by pixel on a small grid, then written as one <rect> per run of same-colored pixels with
 shape-rendering="crispEdges", so it stays sharp at any size."""
 
 import os
-import random
-import sys
-import urllib.parse
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(HERE, "..", "web")
@@ -80,26 +76,9 @@ def logo():
     return grid
 
 
-#textures: drawn at 32px and shown at 2x, so their pixels match the site's 2px pixel frames
-
-def parchment(rng, w=32, h=32):
-    base, flecks = "#fffaee", ["#f6ead0", "#fbf2dc", "#f3e4c2"]
-    grid = [[base] * w for _ in range(h)]
-    for _ in range(14):
-        x, y = rng.randrange(w), rng.randrange(h)
-        grid[y][x] = rng.choice(flecks)
-    return grid
-
-
-def css_url(grid):
-    return 'url("data:image/svg+xml,' + urllib.parse.quote(to_svg(grid)) + '")'
-
-
 def main():
     with open(os.path.join(WEB, "logo.svg"), "w") as f:
         f.write(to_svg(logo(), "Butterbricks") + "\n")
-    rng = random.Random(7)
-    print("  --tex-parchment:", css_url(parchment(rng)) + ";")
 
 
 if __name__ == "__main__":

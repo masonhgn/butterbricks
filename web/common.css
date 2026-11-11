@@ -32,9 +32,6 @@
   --edge: #8a5a12;         /* the dark outline pixel frames are drawn with */
   --left-w: 42%;
   --results-h: 36vh;
-  /* tiles drawn pixel by pixel by tools/pixelart.py, shown at 2x with no smoothing, so their pixels match the
-     2px pixels of the text */
-  --tex-parchment: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2032%2032%22%20width%3D%22128%22%20height%3D%22128%22%20shape-rendering%3D%22crispEdges%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%2232%22%20height%3D%221%22%20fill%3D%22%23fffaee%22/%3E%3Crect%20x%3D%220%22%20y%3D%221%22%20width%3D%2232%22%20height%3D%221%22%20fill%3D%22%23fffaee%22/%3E%3Crect%20x%3D%220%22%20y%3D%222%22%20width%3D%2214%22%20height%3D%221%22%20fill%3D%22%23fffaee%22/%3E%3Crect%20x%3D%2214%22%20y%3D%222%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23f3e4c2%22/%3E%3Crect%20x%3D%2215%22%20y%3D%222%22%20width%3D%2217%22%20height%3D%221%22%20fill%3D%22%23fffaee%22/%3E%3Crect%20x%3D%220%22%20y%3D%223%22%20width%3D%2227%22%20height%3D%221%22%20fill%3D%22%23fffaee%22/%3E%3Crect%20x%3D%2227%22%20y%3D%223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23f3e4c2%22/%3E%3Crect%20x%3D%2228%22%20y%3D%223%22%20width%3D%224%22%20height%3D%221%22%20fill%3D%22%23fffaee%22/%3E%3Crect%20x%3D%220%22%20y%3D%224%22%20width%3D%223%22%20height%3D%221%22%20fill%3D%22%23fffaee%22/%3E%3Crect%20x%3D%223%22%20y%3D%224%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23f3e4c2%22/%3E%3Crect%20x%3D%224%22%20y%3D%224%22%20width%3D%2228%22%20height%3D%221%22%20fill%3D%22%23fffaee%22/%3E%3Crect%20x%3D%220%22%20y%3D%225%22%20width%3D%2232%22%20height%3D%221%22%20fill%3D%22%23fffaee%22/%3E%3Crect%20x%3D%220%22%20y%3D%226%22%20width%3D%2232%22%20height%3D%221%22%20fill%3D%22%23fffaee%22/%3E%3Crect%20x%3D%220%22%20y%3D%227%22%20width%3D%229%22%20height%3D%221%22%20fill%3D%22%23fffaee%22/%3E%3Crect%20x%3D%229%22%20y%3D%227%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23f3e4c2%22/%3E%3Crect%20x%3D%2210%22%20y%3D%227%22%20width%3D%2222%22%20height%3D%221%22%20fill%3D%22%23fffaee%22/%3E%3Crect%20x%3D%220%22%20y%3D%228%22%20width%3D%2232%22%20height%3D%221%22%20fill%3D%22%23fffaee%22/%3E%3Crect%20x%3D%220%22%20y%3D%229%22%20width%3D%2220%22%20height%3D%221%22%20fill%3D%22%23fffaee%22/%3E%3Crect%20x%3D%2220%22%20y%3D%229%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fbf2dc%22/%3E%3Crect%20x%3D%2221%22%20y%3D%229%22%20width%3D%2211%22%20height%3D%221%22%20fill%3D%22%23fffaee%22/%3E%3Crect%20x%3D%220%22%20y%3D%2210%22%20width%3D%2232%22%20height%3D%221%22%20fill%3D%22%23fffaee%22/%3E%3Crect%20x%3D%220%22%20y%3D%2211%22%20width%3D%2219%22%20height%3D%221%22%20fill%3D%22%23fffaee%22/%3E%3Crect%20x%3D%2219%22%20y%3D%2211%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23f6ead0%22/%3E%3Crect%20x%3D%2220%22%20y%3D%2211%22%20width%3D%2212%22%20height%3D%221%22%20fill%3D%22%23fffaee%22/%3E%3Crect%20x%3D%220%22%20y%3D%2212%22%20width%3D%2232%22%20height%3D%221%22%20fill%3D%22%23fffaee%22/%3E%3Crect%20x%3D%220%22%20y%3D%2213%22%20width%3D%223%22%20height%3D%221%22%20fill%3D%22%23fffaee%22/%3E%3Crect%20x%3D%223%22%20y%3D%2213%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23f6ead0%22/%3E%3Crect%20x%3D%224%22%20y%3D%2213%22%20width%3D%2228%22%20height%3D%221%22%20fill%3D%22%23fffaee%22/%3E%3Crect%20x%3D%220%22%20y%3D%2214%22%20width%3D%227%22%20height%3D%221%22%20fill%3D%22%23fffaee%22/%3E%3Crect%20x%3D%227%22%20y%3D%2214%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23f3e4c2%22/%3E%3Crect%20x%3D%228%22%20y%3D%2214%22%20width%3D%2224%22%20height%3D%221%22%20fill%3D%22%23fffaee%22/%3E%3Crect%20x%3D%220%22%20y%3D%2215%22%20width%3D%224%22%20height%3D%221%22%20fill%3D%22%23fffaee%22/%3E%3Crect%20x%3D%224%22%20y%3D%2215%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23f6ead0%22/%3E%3Crect%20x%3D%225%22%20y%3D%2215%22%20width%3D%2227%22%20height%3D%221%22%20fill%3D%22%23fffaee%22/%3E%3Crect%20x%3D%220%22%20y%3D%2216%22%20width%3D%2232%22%20height%3D%221%22%20fill%3D%22%23fffaee%22/%3E%3Crect%20x%3D%220%22%20y%3D%2217%22%20width%3D%2232%22%20height%3D%221%22%20fill%3D%22%23fffaee%22/%3E%3Crect%20x%3D%220%22%20y%3D%2218%22%20width%3D%228%22%20height%3D%221%22%20fill%3D%22%23fffaee%22/%3E%3Crect%20x%3D%228%22%20y%3D%2218%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fbf2dc%22/%3E%3Crect%20x%3D%229%22%20y%3D%2218%22%20width%3D%2223%22%20height%3D%221%22%20fill%3D%22%23fffaee%22/%3E%3Crect%20x%3D%220%22%20y%3D%2219%22%20width%3D%2232%22%20height%3D%221%22%20fill%3D%22%23fffaee%22/%3E%3Crect%20x%3D%220%22%20y%3D%2220%22%20width%3D%2232%22%20height%3D%221%22%20fill%3D%22%23fffaee%22/%3E%3Crect%20x%3D%220%22%20y%3D%2221%22%20width%3D%2232%22%20height%3D%221%22%20fill%3D%22%23fffaee%22/%3E%3Crect%20x%3D%220%22%20y%3D%2222%22%20width%3D%2232%22%20height%3D%221%22%20fill%3D%22%23fffaee%22/%3E%3Crect%20x%3D%220%22%20y%3D%2223%22%20width%3D%226%22%20height%3D%221%22%20fill%3D%22%23fffaee%22/%3E%3Crect%20x%3D%226%22%20y%3D%2223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23f3e4c2%22/%3E%3Crect%20x%3D%227%22%20y%3D%2223%22%20width%3D%225%22%20height%3D%221%22%20fill%3D%22%23fffaee%22/%3E%3Crect%20x%3D%2212%22%20y%3D%2223%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23f6ead0%22/%3E%3Crect%20x%3D%2213%22%20y%3D%2223%22%20width%3D%2219%22%20height%3D%221%22%20fill%3D%22%23fffaee%22/%3E%3Crect%20x%3D%220%22%20y%3D%2224%22%20width%3D%2232%22%20height%3D%221%22%20fill%3D%22%23fffaee%22/%3E%3Crect%20x%3D%220%22%20y%3D%2225%22%20width%3D%223%22%20height%3D%221%22%20fill%3D%22%23fffaee%22/%3E%3Crect%20x%3D%223%22%20y%3D%2225%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23f6ead0%22/%3E%3Crect%20x%3D%224%22%20y%3D%2225%22%20width%3D%2228%22%20height%3D%221%22%20fill%3D%22%23fffaee%22/%3E%3Crect%20x%3D%220%22%20y%3D%2226%22%20width%3D%2232%22%20height%3D%221%22%20fill%3D%22%23fffaee%22/%3E%3Crect%20x%3D%220%22%20y%3D%2227%22%20width%3D%225%22%20height%3D%221%22%20fill%3D%22%23fffaee%22/%3E%3Crect%20x%3D%225%22%20y%3D%2227%22%20width%3D%221%22%20height%3D%221%22%20fill%3D%22%23fbf2dc%22/%3E%3Crect%20x%3D%226%22%20y%3D%2227%22%20width%3D%2226%22%20height%3D%221%22%20fill%3D%22%23fffaee%22/%3E%3Crect%20x%3D%220%22%20y%3D%2228%22%20width%3D%2232%22%20height%3D%221%22%20fill%3D%22%23fffaee%22/%3E%3Crect%20x%3D%220%22%20y%3D%2229%22%20width%3D%2232%22%20height%3D%221%22%20fill%3D%22%23fffaee%22/%3E%3Crect%20x%3D%220%22%20y%3D%2230%22%20width%3D%2232%22%20height%3D%221%22%20fill%3D%22%23fffaee%22/%3E%3Crect%20x%3D%220%22%20y%3D%2231%22%20width%3D%2232%22%20height%3D%221%22%20fill%3D%22%23fffaee%22/%3E%3C/svg%3E");
 }
 
 * { box-sizing: border-box; }
@@ -154,16 +151,16 @@ code, pre, textarea { font-family: var(--mono); }
 /* the problem list: categories, their groups (SQL's levels), and problems */
 
 .cat-head {
-  display: flex; align-items: center; gap: 8px; width: 100%;
-  padding: 9px 12px 8px 8px; border: 0; border-bottom: 2px solid var(--line-strong);
-  background: var(--chrome-2); color: var(--text); text-align: left; cursor: pointer;
-  font: 700 16px var(--serif); position: sticky; top: 0; z-index: 2;
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 8px 12px 9px; border-bottom: 2px solid var(--line-strong);
+  background: var(--gold-light); color: var(--text);
+  font-family: var(--serif); position: sticky; top: 0; z-index: 2;
 }
-.cat-head:hover { background: #f4dc95; }
-.cat-head.here { background: var(--gold-light); }
-.cat-head .caret { width: 12px; color: var(--gold-deep); }
-.cat-head .cat-title { flex: 1; }
-.cat-head .cat-count { font-size: 13px; color: var(--muted); }
+.back-link { font-size: 14px; color: #6b4510; text-decoration: none; }
+.back-link:hover { text-decoration: underline; }
+.cat-line { display: flex; align-items: baseline; gap: 8px; }
+.cat-head .cat-title { flex: 1; font-size: 19px; font-weight: 700; }
+.cat-head .cat-count { font-size: 15px; color: #5f4a1f; }
 .group-head {
   display: flex; justify-content: space-between; gap: 8px; margin: 0;
   padding: 8px 12px 4px 26px; font: 600 12.5px var(--serif); letter-spacing: .05em; text-transform: uppercase;
@@ -317,7 +314,7 @@ code, pre, textarea { font-family: var(--mono); }
 *, *::before, *::after { border-radius: 0 !important; }
 img.logo, .hero-logo { image-rendering: pixelated; }
 
-body { background-color: var(--page); background-image: var(--tex-parchment); background-size: 64px 64px; image-rendering: auto; }
+body { background: linear-gradient(170deg, #ffffff 0%, #fffaee 45%, #fbf0d4 100%) fixed; }
 /* the top band: white fading to cream, over a gold trim with a stepped pixel edge */
 .titlebar {
   background: linear-gradient(#ffffff, #fff8e6 70%, #fdf0cf);
@@ -345,8 +342,6 @@ body { background-color: var(--page); background-image: var(--tex-parchment); ba
 .left-body h2 { font-size: 22px; }
 .sidebar h2 { font-size: 15px; letter-spacing: 0; text-transform: none; color: #8f5f10; }
 .editor-label { font-size: 16px; }
-.cat-head { font-size: 18px; }
-.cat-head .cat-count { font-size: 15px; color: #5f4a1f; }
 .group-head { font-size: 15px; text-transform: none; letter-spacing: 0; color: #8f5f10; }
 .problem-link .name { font-size: 16px; }
 
@@ -395,7 +390,7 @@ body { background-color: var(--page); background-image: var(--tex-parchment); ba
 
 /* a framed parchment panel, for cards and the sign-in box */
 .panel {
-  background: var(--cell) var(--tex-parchment) 0 0 / 64px 64px;
+  background: var(--cell);
   border: 2px solid var(--edge);
   box-shadow: inset 2px 2px 0 #fff, inset -2px -2px 0 #ecd9a6, 4px 4px 0 rgba(122, 78, 18, .22);
 }

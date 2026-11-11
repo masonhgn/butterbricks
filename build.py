@@ -31,7 +31,7 @@ def implementation_catalog():
     with open(os.path.join(WEB, "implementation", "problems.json")) as f:
         data = json.load(f)
     problems = [{"key": p["key"], "title": p["title"], "parts": len(p["parts"]), "difficulty": p["difficulty"],
-                 "minutes": p["minutes"], "summary": p["summary"]} for p in data["problems"]]
+                 "minutes": p["minutes"], "summary": p["summary"], "tags": p.get("tags", [])} for p in data["problems"]]
     return {"key": "implementation", "title": "Implementation", "unit": "part", "total": sum(p["parts"] for p in problems),
             "blurb": "Build a small system in Python against an extensive test suite, one part at a time.",
             "groups": [{"title": None, "problems": problems}]}
