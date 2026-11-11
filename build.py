@@ -9,7 +9,7 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(HERE, "web")
-CATEGORIES = ["sql", "implementation", "patterns"]
+CATEGORIES = ["sql", "implementation", "patterns", "structures"]
 
 
 def sql_catalog():
@@ -37,9 +37,10 @@ def implementation_catalog():
             "groups": [{"title": None, "problems": problems}]}
 
 
-def patterns_catalog():
-    """one group per variant; review twins aren't listed (they come back through the review queue)"""
-    with open(os.path.join(WEB, "patterns", "patterns.json")) as f:
+def bricks_catalog(key, title, blurb):
+    """a brick-based category (Patterns, Structures): one group per variant; review twins aren't listed (they come
+    back through the review queue)"""
+    with open(os.path.join(WEB, key, f"{key}.json")) as f:
         data = json.load(f)
     groups = []
     for pattern in data["patterns"]:
@@ -49,11 +50,8 @@ def patterns_catalog():
                 "problems": [{"key": p["key"], "title": p["title"], "role": p["role"], "roleLabel": p["roleLabel"]}
                              for p in v["problems"] if p["role"] != "review"],
             })
-    return {"key": "patterns", "title": "Patterns", "unit": "problem",
-            "total": sum(len(g["problems"]) for g in groups),
-            "blurb": "Algorithm patterns, one small idea at a time: learn it, watch it work, then solve problems that "
-                     "change one thing at a time.",
-            "groups": groups}
+    return {"key": key, "title": title, "unit": "problem", "total": sum(len(g["problems"]) for g in groups),
+            "blurb": blurb, "groups": groups}
 
 
 def main():
@@ -61,7 +59,12 @@ def main():
         # each script runs from its own directory, so its imports (challenges, problems) resolve as they always have
         subprocess.run([sys.executable, os.path.join(HERE, "categories", category, "build_web.py")], check=True)
     with open(os.path.join(WEB, "catalog.json"), "w") as f:
-        json.dump({"categories": [patterns_catalog(), sql_catalog(), implementation_catalog()]}, f)
+        json.dump({"categories": [
+            bricks_catalog("patterns", "Patterns", "Algorithm patterns, one small idea at a time: learn it, watch it "
+                           "work, then solve problems that change one thing at a time."),
+            bricks_catalog("structures", "Structures", "Designing data structures: choose what to store so every "
+                           "operation is cheap, checked by how each operation's time grows."),
+            sql_catalog(), implementation_catalog()]}, f)
     print("wrote web/catalog.json")
 
 

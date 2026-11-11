@@ -145,8 +145,7 @@ def run_test(test, solution, reference, part=None):
     except Exception as e:
         status, message, details = "error", f"{type(e).__name__}: {e}", user_traceback(e)
         where = error_where(e)
-    if status == "error" and getattr(test, "catches", ""):
-        # a wrong answer says this itself (CallTest); an exception should say it too
+    if status in ("fail", "error", "slow") and getattr(test, "catches", ""):
         details = list(details) + ["", f"This test is built to catch a common mistake: {test.catches}"]
     stdout = out.getvalue()
     if len(stdout) > STDOUT_LIMIT:

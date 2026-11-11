@@ -1,5 +1,5 @@
-/* the Patterns category. Shared pieces are in ../common.css (layout, buttons, tabs, the list) and ../pyrun.css (test
-   results, the error line, the variables panel) */
+/* the brick-based categories (Patterns, Structures), styling bricks.js. Shared pieces are in ../common.css (layout,
+   buttons, tabs, the list) and ../pyrun.css (test results, the error line, the variables panel) */
 
 .py-status { font-size: 15px; color: var(--muted); padding: 2px 9px; border: 1px solid var(--line); background: var(--chrome); white-space: nowrap; }
 .py-status.ready { color: var(--done); border-color: #a8d4b6; background: var(--done-bg); }
@@ -134,3 +134,48 @@
 
 .cat-head .wall-link { color: inherit; text-decoration: none; }
 .cat-head .wall-link:hover { text-decoration: underline; }
+
+/* the "how it works" panel on the wall */
+.how-it-works { margin-top: 14px; border: 2px solid var(--gold-light); background: var(--butter-soft); }
+.how-it-works > summary { cursor: pointer; padding: 8px 14px; font: 700 17px var(--serif); }
+.how-body { padding: 0 18px 12px; }
+.how-body p { margin: 8px 0; color: var(--text); }
+.how-steps { padding-left: 22px; margin: 8px 0; }
+.how-steps li { margin: 8px 0; }
+.sample-cost { margin: 6px 0 0; padding: 8px 10px; background: var(--bad-bg); border: 1px solid #e7aaa5; color: var(--bad); font-size: 13px; white-space: pre-wrap; }
+.brick.planned-brick { flex: 1 1 150px; align-items: flex-start; }
+.brick.planned-brick .brick-name { font-weight: 400; }
+
+/* class problems: the operations table, the design card, a worked design */
+.ops-table { border-collapse: collapse; margin: 6px 0 4px; font-size: 14.5px; }
+.ops-table th, .ops-table td { text-align: left; padding: 4px 12px 4px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+.ops-table th { font: 700 13px var(--ui); color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.cost-sheet td:first-child code { white-space: nowrap; }
+
+.design-card { margin: 16px 0; padding: 12px 14px; border: 2px solid var(--line-strong); background: var(--cell); }
+.design-card h3 { margin: 0 0 4px; }
+.design-card label { display: block; margin: 8px 0; font-weight: 600; font-size: 14px; }
+.design-card label > span { display: block; margin-bottom: 3px; }
+.design-card textarea { width: 100%; font: 13.5px var(--mono); padding: 6px 8px; border: 2px solid var(--line); background: #fff; resize: vertical; }
+.design-card textarea:focus, .design-card input:focus { outline: none; border-color: var(--gold-deep); }
+.cost-inputs { margin: 8px 0; font-weight: 600; font-size: 14px; }
+.cost-row { display: inline-flex !important; align-items: center; gap: 6px; margin: 4px 14px 0 0 !important; }
+.cost-row input { width: 80px; font: 13.5px var(--mono); padding: 3px 6px; border: 2px solid var(--line); }
+.design-compare { margin-top: 10px; }
+.design-compare h4 { margin: 8px 0 4px; font: 700 16px var(--serif); }
+.design-compare p { margin: 6px 0; }
+.design-compare ul { margin: 4px 0; padding-left: 20px; }
+.checks label { font-weight: 400; margin: 4px 0; display: flex; gap: 8px; align-items: baseline; }
+
+.walkthrough { margin: 16px 0; }
+.walk-step { display: grid; grid-template-columns: 30px 1fr; gap: 10px; margin: 10px 0; }
+.walk-num { width: 26px; height: 26px; display: grid; place-items: center; font: 700 15px var(--serif); background: var(--gold-light); border: 2px solid var(--edge); }
+.walk-body .md p { margin: 2px 0 6px; }
+.walk-ask { margin: 8px 0 6px; }
+.choices.compact { grid-template-columns: 1fr; gap: 6px; }
+.choices.compact .choice { padding: 7px 12px; font-size: 14.5px; }
+.walk-why { margin-top: 8px; padding: 8px 12px; font-size: 14.5px; border: 2px solid; }
+.walk-why.right { background: var(--done-bg); border-color: #a8d4b6; }
+.walk-why.wrong { background: var(--bad-bg); border-color: #e7aaa5; }
+.op-note { padding: 6px 10px; background: var(--butter-soft); border: 2px solid var(--gold-light); }
+.step-pane.locked .step-code { filter: blur(6px); pointer-events: none; user-select: none; }

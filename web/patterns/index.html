@@ -9,9 +9,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tinos:wght@400;700&display=swap">
-<link rel="stylesheet" href="../common.css?v=bbs-6">
-<link rel="stylesheet" href="../pyrun.css?v=bbs-6">
-<link rel="stylesheet" href="style.css?v=bbs-6">
+<link rel="stylesheet" href="../common.css?v=bbs-7">
+<link rel="stylesheet" href="../pyrun.css?v=bbs-7">
+<link rel="stylesheet" href="../bricks.css?v=bbs-7">
 </head>
 <body>
 
@@ -95,8 +95,20 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/selection/active-line.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/comment/comment.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/runmode/runmode.min.js"></script>
-<script src="../common.js?v=bbs-6"></script>
-<script src="../pyrun.js?v=bbs-6"></script>
-<script src="app.js?v=bbs-6"></script>
+<script src="../common.js?v=bbs-7"></script>
+<script src="../pyrun.js?v=bbs-7"></script>
+<script>
+window.CATEGORY = {
+  key: "patterns",
+  title: "Patterns",
+  data: "patterns.json",
+  drillQuestion: "Which pattern is this?",
+  summary: `Algorithm patterns, laid one brick at a time. Each brick is one small idea with one invariant. You step
+    through a worked example, fill in its key lines, then solve problems that change one thing at a time: a twin (same
+    structure, new story), a variation (one change), and a stretch. A brick is laid when you solve its variation or
+    stretch without revealing the solution, and laid bricks come back for review after 1, 3, 7 and 21 days.`,
+};
+</script>
+<script src="../bricks.js?v=bbs-7"></script>
 </body>
 </html>

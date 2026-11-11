@@ -1,8 +1,13 @@
 "use strict";
 
-// the Patterns category's page. Three views, chosen by the URL: the wall (/patterns/), one problem
-// (/patterns/#<problem>) and a recognition drill session (/patterns/#drill). docs/patterns-taxonomy.md describes the
-// model: patterns hold variants ("bricks"), variants hold problems with a role each, and drills.
+// the engine for brick-based categories (Patterns, Structures). Each page sets window.CATEGORY first (see
+// patterns/index.html) and loads this. Three views, chosen by the URL: the wall (/<category>/), one problem
+// (/<category>/#<problem>) and a recognition drill session (/<category>/#drill). docs/patterns-taxonomy.md and
+// docs/structures-taxonomy.md describe the model: patterns (families) hold variants (techniques, the "bricks"),
+// variants hold problems with a role each, and drills. Structures' problems add an operations table, a design card,
+// and worked designs (questions before the code trace); they show wherever a problem has them.
+
+const C = window.CATEGORY;
 
 const S = {
   data: null,           // patterns.json
@@ -46,8 +51,10 @@ function shuffled(items) {
 //  reviews:  variant -> { stage, due }    (due is a time, or null once every review is done)
 //  drills:   drill -> { ok, t }
 
-const PROGRESS_KEY = "butterbricks:patterns:progress";
-const codeKey = (k) => `butterbricks:patterns:code:${k}`;
+const PROGRESS_KEY = `butterbricks:${C.key}:progress`;
+const codeKey = (k) => `butterbricks:${C.key}:code:${k}`;
+const designKey = (k) => `butterbricks:${C.key}:design:${k}`;  // your design card for a problem
+const INTRO_KEY = `butterbricks:${C.key}:intro-closed`;  // this browser only
 const DAY = 24 * 60 * 60 * 1000;
 const REVIEW_DAYS = [1, 3, 7, 21];
 const LAYS_BRICK = ["variation", "stretch"];
@@ -163,11 +170,8 @@ function showWall() {
   const page = el("div", "wall-page");
 
   const intro = el("section", "panel wall-intro");
-  intro.innerHTML = `<h1>Patterns</h1>
-    <p>Algorithm patterns, laid one brick at a time. Each brick is one small idea with one invariant. You step through
-    a worked example, fill in its key lines, then solve problems that change one thing at a time: a twin (same
-    structure, new story), a variation (one change), and a stretch. A brick is laid when you solve its variation or
-    stretch without revealing the solution, and laid bricks come back for review after 1, 3, 7 and 21 days.</p>`;
+  intro.innerHTML = `<h1>${esc(C.title)}</h1><p>${C.summary}</p>`;
+  if (C.howItWorks) intro.append(howItWorks());
   const actions = el("div", "wall-actions");
   const rec = recommended(p);
   if (rec) {
@@ -178,7 +182,7 @@ function showWall() {
   }
   const drill = el("a", "btn", "Recognition drill ›");
   drill.href = "#drill";
-  drill.title = "Name the pattern from a problem statement, then the signal that gave it away";
+  drill.title = `${C.drillQuestion} Then: what gave it away?`;
   actions.append(drill);
   intro.append(actions);
   page.append(intro);
@@ -211,6 +215,7 @@ function showWall() {
     row.append(el("div", "row-label", esc(pattern.name)));
     const bricks = el("div", "bricks");
     for (const v of pattern.variants) bricks.append(brickButton(pattern, v, p));
+    for (const name of pattern.planned || []) bricks.append(el("span", "brick ghost planned-brick", `<span class="brick-name">${esc(name)}</span><span class="brick-sub">planned</span>`));
     row.append(bricks);
     rows.push(row);
   });
@@ -220,13 +225,23 @@ function showWall() {
     rows.push(row);
   }
   const more = S.data.planned.length - 4;
-  if (more > 0) rows.push(el("div", "wall-row planned more", `<div class="row-label"></div><div class="bricks muted small">and ${more} more patterns, from Binary Search to Bit Manipulation</div>`));
+  if (more > 0) rows.push(el("div", "wall-row planned more", `<div class="row-label"></div><div class="bricks muted small">and ${more} more: ${esc(S.data.planned.slice(4).join(", "))}</div>`));
   rows.reverse().forEach((r, i) => { r.classList.toggle("offset", i % 2 === 1); wall.append(r); });
   wall.append(el("div", "wall-ground"));
   page.append(wall);
 
   box.append(page);
   renderProgressBar();
+}
+
+// the category's "how it works" panel: open on a first visit, folded after that
+function howItWorks() {
+  const box = el("details", "how-it-works");
+  box.open = raw(INTRO_KEY) !== "1";
+  box.append(el("summary", "", `How ${esc(C.title)} works`));
+  box.append(el("div", "how-body", C.howItWorks));
+  box.addEventListener("toggle", () => raw(INTRO_KEY, box.open ? null : "1"));
+  return box;
 }
 
 //one problem
@@ -237,7 +252,7 @@ function renderSidebar() {
   const { variant: here } = S.index.get(S.current);
   bar.innerHTML = "";
   const head = el("div", "cat-head", `<a class="back-link" href="/">‹ All problems</a>` +
-    `<span class="cat-line"><span class="cat-title"><a href="#" class="wall-link">Patterns</a></span><span class="cat-count">${$("progress-text").textContent}</span></span>`);
+    `<span class="cat-line"><span class="cat-title"><a href="#" class="wall-link">${esc(C.title)}</a></span><span class="cat-count">${$("progress-text").textContent}</span></span>`);
   head.querySelector(".wall-link").onclick = (e) => { e.preventDefault(); history.pushState(null, "", location.pathname); showWall(); };
   bar.append(head);
   for (const pattern of S.data.patterns) {
@@ -311,7 +326,7 @@ function sequenceDots(variant, problem, p) {
   return `<span class="seq">${seq.map((x) => `<span class="dot${p.solved[x.key] ? " done" : ""}${x.key === problem.key ? " here" : ""}" title="${esc(x.roleLabel)}"></span>`).join("")}</span>`;
 }
 
-const ROLE_HELP = {
+const ROLE_HELP = C.roleHelp || {
   example: "Step through the solution on the right. At some steps you'll predict what happens before it's shown.",
   completion: "The code on the right is nearly done: fill in the blanks marked ___.",
   twin: "The same structure as before, in a different story. Write it from scratch.",
@@ -335,16 +350,138 @@ function renderStatement() {
   box.append(el("p", "role-help muted", esc(ROLE_HELP[problem.role])));
   if (problem.changes) box.append(el("div", "changes", `<b>What changes:</b> ${inline(problem.changes)}`));
   box.append(md(problem.statement));
-  const sig = el("div", "signature");
-  sig.append(highlighted(problem.signature, "python"));
-  box.append(sig);
+  if (problem.operations.length) {
+    box.append(operationsTable(problem));
+  } else {
+    const sig = el("div", "signature");
+    sig.append(highlighted(problem.signature, "python"));
+    box.append(sig);
+  }
+  if (problem.walkthrough) box.append(walkthrough(problem));
   const samples = problem.tests.filter((t) => !t.hidden && t.preview.length);
   if (samples.length && problem.role !== "example") {
     box.append(el("h3", "", "Examples"));
     box.append(highlighted(samples.flatMap((t) => t.preview).join("\n"), "python"));
   }
+  if (problem.design && problem.role !== "example") box.append(designCard(problem));
   if (problem.hints.length) box.append(hintBox(problem.hints));
   if (p.solved[problem.key] && problem.takeaway) box.append(el("div", "takeaway", `<b>Takeaway.</b> ${inline(problem.takeaway)}`));
+}
+
+// the operations a class problem asks for, each with the cost it must have
+function operationsTable(problem) {
+  const box = el("div", "ops");
+  box.append(el("h3", "", "Operations"));
+  const table = el("table", "ops-table");
+  table.append(el("tr", "", "<th>operation</th><th>must cost</th>"));
+  for (const [sig, cost] of problem.operations) {
+    table.append(el("tr", "", `<td><code>${esc(sig)}</code></td><td>${cost ? `<b>${esc(cost)}</b>` : `<span class="muted">(constructor)</span>`}</td>`));
+  }
+  box.append(table);
+  return box;
+}
+
+//the design card: what you'll keep, what must stay true, and each operation's cost, written before coding. Ours is
+//shown after you solve it; opening it earlier counts as revealing the solution
+
+function designCard(problem) {
+  const mine = storedJson(designKey(problem.key), {});
+  const box = el("section", "design-card");
+  box.append(el("h3", "", "Your design"));
+  box.append(el("p", "muted small", "Before you code, write the plan you'd say out loud in an interview. It's saved as you type, and you can compare it with ours once you've solved the problem."));
+  const field = (label, name, placeholder) => {
+    const l = el("label", "", `<span>${label}</span>`);
+    const t = el("textarea");
+    t.rows = 2;
+    t.placeholder = placeholder;
+    t.value = mine[name] || "";
+    t.oninput = () => { const d = storedJson(designKey(problem.key), {}); d[name] = t.value; storage(designKey(problem.key), JSON.stringify(d)); };
+    l.append(t);
+    box.append(l);
+  };
+  field("What will you keep?", "state", "Each field and what it holds, like: items: list of tickets");
+  field("What must always be true? (the invariant)", "invariant", "The fact that ties your fields together");
+  const costs = el("div", "cost-inputs", "<span>What will each operation cost?</span>");
+  for (const op of Object.keys(problem.design.costs)) {
+    const row = el("label", "cost-row", `<code>${esc(op)}</code>`);
+    const input = el("input");
+    input.placeholder = "O(?)";
+    input.value = mine.costs?.[op] || "";
+    input.oninput = () => { const d = storedJson(designKey(problem.key), {}); d.costs ||= {}; d.costs[op] = input.value; storage(designKey(problem.key), JSON.stringify(d)); };
+    row.append(input);
+    costs.append(row);
+  }
+  box.append(costs);
+  const p = progress();
+  const compare = el("div", "design-compare");
+  const showOurs = () => {
+    const d = problem.design;
+    compare.innerHTML = `<h4>Our design</h4><p><b>Keep:</b></p><ul>${d.state.map((x) => `<li>${inline(x)}</li>`).join("")}</ul>
+      <p><b>Invariant:</b> ${inline(d.invariant)}</p>
+      <p><b>Costs:</b> ${Object.entries(d.costs).map(([op, c]) => `<code>${esc(op)}</code> ${esc(c)}`).join(", ")}</p>
+      <p><b>Did yours have…</b></p>`;
+    const checks = el("div", "checks");
+    for (const c of d.checks) checks.append(el("label", "", `<input type="checkbox"> ${inline(c)}`));
+    compare.append(checks);
+  };
+  if (p.solved[problem.key] || p.revealed[problem.key]) {
+    showOurs();
+  } else {
+    const b = el("button", "btn small", "Compare with our design");
+    armed(b, "Before solving, this counts as revealing the solution. Click again", () => {
+      const q = progress();
+      q.revealed[problem.key] = Date.now();
+      saveProgress(q);
+      renderSolution();
+      showOurs();
+    });
+    compare.append(b);
+  }
+  box.append(compare);
+  return box;
+}
+
+//a worked design: the design built up one question at a time; the code stepper unlocks once every question is answered
+
+function walkthrough(problem) {
+  S.walk ||= {};
+  const answers = (S.walk[problem.key] ||= []);
+  const box = el("section", "walkthrough");
+  box.append(el("h3", "", "Worked design"));
+  box.append(el("p", "muted small", "Answer each question to see the next step. Then step through the code on the right."));
+  for (let i = 0; i < problem.walkthrough.length; i++) {
+    const step = problem.walkthrough[i];
+    const card = el("div", "walk-step");
+    card.append(el("div", "walk-num", `${i + 1}`));
+    const body = el("div", "walk-body");
+    body.append(md(step.text));
+    if (step.ask) {
+      body.append(el("p", "walk-ask", `<b>${inline(step.ask)}</b>`));
+      const opts = el("div", "choices compact");
+      for (const opt of step.options) {
+        const b = el("button", "choice", inline(opt));
+        if (answers[i] !== undefined) {
+          b.disabled = true;
+          if (opt === step.answer) b.classList.add("right");
+          else if (opt === answers[i]) b.classList.add("wrong");
+        }
+        b.onclick = () => { answers[i] = opt; renderStatement(); if (walkDone(problem)) renderStep(); };
+        opts.append(b);
+      }
+      body.append(opts);
+      if (answers[i] !== undefined) body.append(el("div", `walk-why ${answers[i] === step.answer ? "right" : "wrong"}`, `${answers[i] === step.answer ? "Right." : "Not quite."} ${inline(step.why)}`));
+    }
+    card.append(body);
+    box.append(card);
+    if (step.ask && answers[i] === undefined) break;  // the next step shows once this one is answered
+  }
+  return box;
+}
+
+function walkDone(problem) {
+  if (!problem.walkthrough) return true;
+  const answers = S.walk?.[problem.key] || [];
+  return problem.walkthrough.every((step, i) => !step.ask || answers[i] !== undefined) || !!progress().solved[problem.key];
 }
 
 function hintBox(hints) {
@@ -387,6 +524,13 @@ function renderLearn() {
     for (const it of items) ul.append(el("li", "", inline(it)));
     box.append(ul);
   };
+  if (variant.referenceTable.length) {
+    box.append(el("h3", "", "What each operation costs"));
+    const t = el("table", "ops-table cost-sheet");
+    t.append(el("tr", "", "<th>operation</th><th>cost</th><th></th>"));
+    for (const [op, cost, note] of variant.referenceTable) t.append(el("tr", "", `<td><code>${esc(op)}</code></td><td><b>${esc(cost)}</b></td><td class="muted">${esc(note)}</td>`));
+    box.append(t);
+  }
   list("Signals: when a problem says…", variant.signals);
   list("Easily confused with", variant.nearMisses);
   list("Common mistakes (each one has a test that catches it)", variant.mistakes);
@@ -498,7 +642,7 @@ async function runTests(mode) {
 function solved(key) {
   const { problem, variant } = S.index.get(key);
   const result = markSolved(key);
-  if (result.first || result.reviewed) logSolve("patterns", key, `${variant.name} · ${problem.title}`);
+  if (result.first || result.reviewed) logSolve(C.key, key, `${variant.name} · ${problem.title}`);
   const p = progress();
   const banner = el("div", "unlock");
   let text = `<b>${problem.role === "example" ? "Studied." : "Solved."}</b>`;
@@ -539,7 +683,7 @@ function after(key) {
   return rec ? nextProblem(rec.variant, p) : null;
 }
 
-//the worked-example stepper: walks the trace built at build time from the reference solution (categories/patterns/trace.py)
+//the worked-example stepper: walks the trace built at build time from the reference solution (categories/framework/trace.py)
 
 let stepMark = null;
 
@@ -547,7 +691,7 @@ function startStepper(problem) {
   S.step = 0;
   S.answered = new Set();
   stepCm.setValue(problem.reference.replace(/\n$/, ""));
-  $("step-call").textContent = problem.trace.call;
+  $("step-call").textContent = problem.kind === "class" ? `${problem.function}: ${plural(problem.trace.script.length - 1, "operation")}` : problem.trace.call;
   setTimeout(() => { stepCm.refresh(); renderStep(); }, 0);
 }
 
@@ -558,18 +702,27 @@ function renderStep() {
   const step = steps[i];
   const last = i === steps.length - 1;
   if (stepMark !== null) stepCm.removeLineClass(stepMark, "background", "cm-step-line");
-  stepMark = step.line - 1;
-  stepCm.addLineClass(stepMark, "background", "cm-step-line");
-  stepCm.scrollIntoView({ line: stepMark, ch: 0 }, 60);
+  stepMark = step.line ? step.line - 1 : null;
+  if (stepMark !== null) {
+    stepCm.addLineClass(stepMark, "background", "cm-step-line");
+    stepCm.scrollIntoView({ line: stepMark, ch: 0 }, 60);
+  }
   $("step-count").textContent = `step ${i + 1} of ${steps.length}`;
 
   const panel = $("step-panel");
   panel.innerHTML = "";
+  $("step-pane").classList.toggle("locked", !walkDone(problem));  // the code would give the design away
+  if (!walkDone(problem)) {
+    panel.append(el("div", "step-note", "<b>First, the design.</b> Answer the questions on the left; then step through the code here and watch it run."));
+    return;
+  }
   const waiting = step.predict && !S.answered.has(i);
-  if (step.returns !== undefined) {
+  if (step.op) {
+    panel.append(el("div", "step-note op-note", `<b>Calling</b> <code>${esc(step.op)}</code>`));
+  } else if (step.returns !== undefined) {
     panel.append(el("div", "step-note", `<b>Line ${step.line} returns</b> <code>${esc(step.returns)}</code>.`));
   } else {
-    panel.append(el("div", "step-note", `<b>About to run line ${step.line}.</b> ${step.note ? esc(step.note) : ""}`));
+    panel.append(el("div", "step-note", `<b>About to run line ${step.line}${step.in && step.in !== problem.function && problem.kind === "class" ? ` in ${esc(step.in)}()` : ""}.</b> ${step.note ? esc(step.note) : ""}`));
   }
   if (step.predict) {
     const box = el("div", "predict");
@@ -594,7 +747,8 @@ function renderStep() {
     panel.append(box);
   }
   const table = el("table", "vars-table state");
-  const prev = i > 0 ? Object.fromEntries(steps[i - 1].vars) : {};
+  const prevStep = steps.slice(0, i).reverse().find((x) => x.vars.length);
+  const prev = prevStep ? Object.fromEntries(prevStep.vars) : {};
   for (const [name, value] of step.vars) {
     const tr = el("tr", prev[name] !== undefined && prev[name] !== value ? "changed" : "");
     tr.append(el("td", "vname", esc(name)), el("td", "vval", esc(value)));
@@ -653,7 +807,7 @@ function renderDrill() {
   const d = S.drill;
   const card = el("section", "panel drill-card");
   if (d.i >= d.items.length) {
-    card.innerHTML = `<h1>Drill done</h1><p>You named <b>${d.named} of ${d.items.length}</b> patterns, and spotted <b>${d.signals} of ${d.items.length}</b> signals.</p>`;
+    card.innerHTML = `<h1>Drill done</h1><p>You got <b>${d.named} of ${d.items.length}</b> answers right, and spotted <b>${d.signals} of ${d.items.length}</b> signals.</p>`;
     const again = el("button", "btn primary", "Another round");
     again.onclick = startDrill;
     const wall = el("a", "btn", "Back to the wall");
@@ -670,7 +824,7 @@ function renderDrill() {
   card.append(el("div", "meta", `<span class="chip">Recognition drill</span><span>${d.i + 1} of ${d.items.length}</span>`));
   card.append(el("p", "drill-statement", esc(item.statement)));
 
-  card.append(el("h3", "", "Which pattern is this?"));
+  card.append(el("h3", "", esc(item.question || C.drillQuestion)));
   item.nameOptions ||= shuffled([item.answer, ...item.choices]);
   const names = el("div", "choices");
   for (const opt of item.nameOptions) {
@@ -708,7 +862,7 @@ function renderDrill() {
         const first = !p.drills[item.key]?.ok && ok;
         p.drills[item.key] = { ok: ok || !!p.drills[item.key]?.ok, t: Date.now() };
         saveProgress(p);
-        if (first) logSolve("patterns-drill", item.key, `Drill: ${item.answer}`);
+        if (first) logSolve(`${C.key}-drill`, item.key, `Drill: ${item.answer}`);
         renderDrill();
       };
       sigs.append(b);
@@ -731,10 +885,10 @@ function renderDrill() {
 
 async function main() {
   try {
-    S.data = await (await fetch("patterns.json")).json();
+    S.data = await (await fetch(C.data)).json();
   } catch (e) {
     $("wall-view").hidden = false;
-    $("wall-view").innerHTML = "<p class=\"panel\">Couldn't load <code>patterns.json</code>. Run <code>./serve.py</code> from the repo root, which builds it first.</p>";
+    $("wall-view").innerHTML = `<p class="panel">Couldn't load <code>${esc(C.data)}</code>. Run <code>./serve.py</code> from the repo root, which builds it first.</p>`;
     return;
   }
   for (const pattern of S.data.patterns) {
@@ -760,7 +914,7 @@ async function main() {
   errors = errorLine(cm);
   let saveTimer;
   cm.on("change", () => { clearTimeout(saveTimer); saveTimer = setTimeout(saveCode, 400); });
-  py = startPython({ base: "/patterns/", files: S.data.files, onStatus: (kind, text) => {
+  py = startPython({ base: `/${C.key}/`, files: S.data.files, onStatus: (kind, text) => {
     const s = $("py-status");
     s.className = `py-status ${kind}`;
     s.textContent = text;
@@ -777,7 +931,7 @@ async function main() {
   });
   armed($("btn-reset-progress"), "Click again to erase everything", () => {
     try {
-      for (const k of Object.keys(localStorage)) if (k.startsWith("butterbricks:patterns:")) storage(k, null);
+      for (const k of Object.keys(localStorage)) if (k.startsWith(`butterbricks:${C.key}:`)) storage(k, null);
     } catch (e) {}
     route();
   });
@@ -792,7 +946,7 @@ async function main() {
   window.addEventListener("beforeunload", saveCode);
   window.addEventListener("hashchange", route);
   window.addEventListener("popstate", route);
-  setupSplitters("patterns", () => { cm.refresh(); stepCm.refresh(); });
+  setupSplitters(C.key, () => { cm.refresh(); stepCm.refresh(); });
   await loadCatalog();
   route();
 }

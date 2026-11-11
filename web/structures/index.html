@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Structures · Butterbricks</title>
+<link rel="icon" href="../logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tinos:wght@400;700&display=swap">
+<link rel="stylesheet" href="../common.css?v=bbs-7">
+<link rel="stylesheet" href="../pyrun.css?v=bbs-7">
+<link rel="stylesheet" href="../bricks.css?v=bbs-7">
+</head>
+<body>
+
+<header class="titlebar">
+  <a class="brand" href="../"><img class="logo" src="../logo.svg" alt=""><span class="wordmark">Butterbricks</span></a>
+  <div class="progress" title="bricks laid">
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+    <span id="progress-text"></span>
+  </div>
+  <div class="titlebar-actions">
+    <span class="py-status" id="py-status">Loading Python…</span>
+    <button class="btn ghost" id="btn-reset-progress" title="erase this category's progress and code">Reset progress</button>
+  </div>
+</header>
+
+<!-- the wall: every pattern as a row of bricks, the review queue, and the way into drills -->
+<main class="page-view" id="wall-view" hidden></main>
+
+<!-- a recognition drill session -->
+<main class="page-view" id="drill-view" hidden></main>
+
+<!-- one problem: the list, the statement, and either the editor or the worked-example stepper -->
+<div class="app" id="problem-view" hidden>
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <section class="statement-pane">
+    <div class="tabs" id="left-tabs">
+      <button class="tab on" data-tab="problem">Problem</button>
+      <button class="tab" data-tab="learn">Learn</button>
+      <button class="tab" data-tab="solution">Solution</button>
+    </div>
+    <div class="left-body" id="tab-problem"></div>
+    <div class="left-body learn" id="tab-learn" hidden></div>
+    <div class="left-body" id="tab-solution" hidden></div>
+  </section>
+
+  <div class="vsplit" id="vsplit" title="drag to resize"></div>
+
+  <section class="code-pane">
+    <div class="solve-pane" id="solve-pane">
+      <div class="editor-bar">
+        <span class="editor-label">solution.py</span>
+        <span class="muted small">Python 3.12</span>
+        <span class="spacer"></span>
+        <button class="btn ghost small" id="btn-reset-code" title="replace your code with the starter code">Reset code</button>
+      </div>
+      <div class="editor" id="editor"></div>
+      <div class="run-bar">
+        <span class="muted small" id="run-target"></span>
+        <span class="spacer"></span>
+        <button class="btn" id="btn-run" title="run the sample tests (Ctrl+Enter)">▶ Run samples</button>
+        <button class="btn primary" id="btn-submit" title="run every test, hidden ones included (Ctrl+Shift+Enter)">Submit</button>
+      </div>
+      <div class="hsplit" id="hsplit" title="drag to resize"></div>
+      <div class="results-pane">
+        <div class="bottom-body">
+          <div class="results-empty muted" id="results-empty">Run the samples to check your code against the examples, then Submit to run every test, including the ones built to catch common mistakes.</div>
+          <div class="results-summary" id="results-summary" hidden></div>
+          <div class="results" id="results"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="step-pane" id="step-pane" hidden>
+      <div class="editor-bar">
+        <span class="editor-label" id="step-call"></span>
+        <span class="spacer"></span>
+        <span class="muted small" id="step-count"></span>
+      </div>
+      <div class="step-code" id="step-code"></div>
+      <div class="step-panel" id="step-panel"></div>
+    </div>
+  </section>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/selection/active-line.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/comment/comment.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/runmode/runmode.min.js"></script>
+<script src="../common.js?v=bbs-7"></script>
+<script src="../pyrun.js?v=bbs-7"></script>
+<script>
+window.CATEGORY = {
+  key: "structures",
+  title: "Structures",
+  data: "structures.json",
+  drillQuestion: "Which technique fits?",
+  summary: `Designing data structures, one technique at a time: given what a class must do and how fast, choose what
+    to store so every operation is cheap. A brick is laid when you solve its variation or stretch without revealing
+    the solution, and laid bricks come back for review after 1, 3, 7 and 21 days.`,
+  howItWorks: `
+    <p>Interviewers often ask you to build a class: <i>support these operations, each this fast</i>. What decides it is
+    choosing what to store. Every problem here practices that the same way:</p>
+    <ol class="how-steps">
+      <li><b>Read the operations table.</b> Each problem lists its methods and what each may cost, like
+        <code>remove(x)</code> must cost <b>O(1)</b>.</li>
+      <li><b>Find the bottleneck.</b> Picture the obvious design (one list, or one set). Which operation does it make
+        slow? The <b>Building blocks</b> brick, and the cost sheet in its Learn tab, show what Python's own structures
+        are fast and slow at.</li>
+      <li><b>Combine, and name the invariant.</b> Add a structure that makes the slow operation fast, and write down
+        what must always be true between them. You'll write this on the <b>design card</b> before you code.</li>
+      <li><b>Implement it, and submit.</b> Tests check your answers and, separately, how each operation's time grows
+        as the structure gets bigger. Correct code with the wrong structure fails with a message like:
+        <pre class="sample-cost">✗ remove() gets slower as the structure grows
+  remove() took longer per call as the structure grew: ×9.6 for 10× the items,
+  like O(n). The target is O(1).</pre></li>
+    </ol>
+    <p>Each brick starts with a <b>worked design</b>: the design built up one question at a time, then the code to step
+    through, with every field of the object shown as it changes. New to this? Start with <b>Building blocks</b>: the
+    Continue button below goes there.</p>`,
+  roleHelp: {
+    example: "A worked design. Answer the questions below to build the design one step at a time, then step through the code on the right and watch every field change.",
+    completion: "The design is done, and most of the code too: fill in the blanks marked ___ in the editor.",
+    twin: "The same requirements in a new story. Fill in your design card first, then write the class from scratch.",
+    variation: "One requirement changes from the problem before. Does your design still hold? The cost tests will tell you if an operation got slow. Solving this without revealing the solution lays the brick.",
+    stretch: "A bigger twist. Solving it without revealing the solution also lays the brick.",
+    review: "A review: the same design in a new disguise, to keep it from fading.",
+  },
+};
+</script>
+<script src="../bricks.js?v=bbs-7"></script>
+</body>
+</html>

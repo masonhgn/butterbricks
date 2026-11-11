@@ -5,7 +5,7 @@ import random
 
 from framework.tests import CallTest as T
 
-from .model import Drill, Pattern, Problem, Variant
+from framework.curriculum import Drill, Pattern, Problem, Variant
 
 
 def _rng(seed):

@@ -26,6 +26,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 CATEGORIES = {
     "patterns": "algorithm patterns, one small idea at a time, each with a worked example and problems",
+    "structures": "designing data structures: choose what to store so every operation is cheap",
     "sql": "78 SQL challenges in 10 levels, against a real SQLite database",
     "implementation": "multi-part problems: build a small system in Python against a test suite",
 }

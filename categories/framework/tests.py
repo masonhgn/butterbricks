@@ -171,11 +171,12 @@ def construct(module, cls, args, kwargs, where="your solution"):
 class TestCase:
     kind = "scenario"
 
-    def __init__(self, name, *, description="", hidden=False, time_limit=2.0):
+    def __init__(self, name, *, description="", hidden=False, time_limit=2.0, catches=""):
         self.name = name
         self.description = description
         self.hidden = hidden
         self.time_limit = time_limit  # seconds; going over fails the test
+        self.catches = catches  # the common mistake this test is built to catch; a failure says so (runner.run_test)
 
     def prepare(self, ctx):
         """untimed setup, such as asking the reference for expected values"""
@@ -194,6 +195,7 @@ class TestCase:
             "description": self.description,
             "hidden": self.hidden,
             "time_limit": self.time_limit,
+            "catches": self.catches,
             "preview": [] if self.hidden else self.preview(),
         }
 
@@ -233,7 +235,7 @@ class OpsTest(TestCase):
 
     kind = "ops"
 
-    def __init__(self, name, steps, *, cls, args=(), **kw):
+    def __init__(self, name, steps, *, cls=None, args=(), **kw):
         super().__init__(name, **kw)
         self.cls = cls
         self.args = tuple(args)
@@ -286,15 +288,17 @@ class OpsTest(TestCase):
 class ScenarioTest(TestCase):
     """runs fn(ctx), which drives the solution and raises Fail (via ctx.check / ctx.fail / ctx.metric) on a problem"""
 
-    def __init__(self, name, fn, *, sample=(), **kw):
+    def __init__(self, name, fn, *, sample=(), cls=None, **kw):
         super().__init__(name, **kw)
         self.fn = fn
         self.sample = list(sample)  # optional lines showing the input, for sample tests
+        self.cls = cls  # the class under test, for fn to build with ctx.new(ctx.cls); a problem fills it in
 
     def preview(self):
         return self.sample
 
     def execute(self, ctx):
+        ctx.cls = self.cls
         self.fn(ctx)
 
 
@@ -306,14 +310,13 @@ class CallTest(TestCase):
 
     kind = "call"
 
-    def __init__(self, name, args, expect=REFERENCE, *, function=None, normalize=None, catches="", **kw):
+    def __init__(self, name, args, expect=REFERENCE, *, function=None, normalize=None, **kw):
         super().__init__(name, **kw)
         self._args = args
         self._built = None
         self.expect = expect
         self.function = function  # the problem fills this in
         self.normalize = normalize
-        self.catches = catches
         self.shown_expect = None  # the expected value as shown in a sample's preview, filled in at build time
 
     def args(self):
@@ -331,9 +334,6 @@ class CallTest(TestCase):
         want = self.shown_expect if self.expect is REFERENCE else show(self.expect)
         return [self.label() + (f"  →  {want}" if want is not None else "")]
 
-    def summary(self):
-        return {**super().summary(), "catches": self.catches}
-
     def prepare(self, ctx):
         if self.expect is REFERENCE:
             self._want = getattr(ctx.reference, self.function)(*fresh(self.args()))
@@ -349,7 +349,78 @@ class CallTest(TestCase):
         want = self._want
         g, w = (self.normalize(got), self.normalize(want)) if self.normalize else (got, want)
         if not same(g, w):
-            details = [self.label(), f"  expected  {show(want)}", f"  got       {show(got)}"]
-            if self.catches:
-                details += ["", f"This test is built to catch a common mistake: {self.catches}"]
-            raise Fail("wrong answer", details)
+            raise Fail("wrong answer", [self.label(), f"  expected  {show(want)}", f"  got       {show(got)}"])
+
+
+class CostTest(TestCase):
+    """checks how an operation's time grows with the size of the structure: builds it at two sizes, `factor` times
+    apart, times `calls` calls of each operation at each size, and fails an operation whose time per call grew like
+    the size did. Timing can tell "grows with n" from "doesn't", not O(log n) from O(1), so the only target is
+    "doesn't grow" (stated as `target`, usually "O(1)").
+
+    `build(obj, n)` fills a fresh object to size n (untimed). `ops` maps a label to `op(obj, n, i)`, the i-th timed call
+    on an object of size n; it should leave the size about the same (call `calls` times, with calls much smaller than n)"""
+
+    kind = "cost"
+
+    def __init__(self, name, build, ops, *, cls=None, args=(), sizes=(1_000, 10_000), calls=500, target="O(1)", **kw):
+        if calls * 2 > sizes[0]:
+            raise ValueError(f"{name}: make calls ({calls}) at most half the smaller size ({sizes[0]})")
+        kw.setdefault("time_limit", 20.0)
+        super().__init__(name, **kw)
+        self.cls = cls
+        self.args = tuple(args)
+        self.build = build
+        self.ops = ops
+        self.sizes = sizes
+        self.calls = calls
+        self.target = target
+
+    def preview(self):
+        small, big = self.sizes
+        return [f"# times {', '.join(self.ops)} at {small:,} and {big:,} items; target {self.target} each"]
+
+    def _per_call(self, ctx, label, n):
+        import time
+        obj = ctx.new(self.cls, *self.args)
+        self.build(obj, n)
+        op = self.ops[label]
+        start = time.perf_counter()
+        for i in range(self.calls):
+            op(obj, n, i)
+        return (time.perf_counter() - start) / self.calls
+
+    def _measure(self, ctx, label):
+        """time per call at both sizes. A clear result is measured once, so a slow design fails quickly; one near the
+        line is measured twice more, keeping the fastest run of each size, since noise only ever makes a run slower"""
+        small, big = self.sizes
+        factor = big / small
+        a, b = self._per_call(ctx, label, small), self._per_call(ctx, label, big)
+        growth = b / max(a, 1e-9)
+        if factor / 5 < growth < factor / 1.5 or (growth > factor / 2.5 and b < 4e-6):
+            for _ in range(2):
+                a = min(a, self._per_call(ctx, label, small))
+                b = min(b, self._per_call(ctx, label, big))
+        return a, b
+
+    def execute(self, ctx):
+        small, big = self.sizes
+        factor = big / small
+        slow = []
+        for label in self.ops:
+            a, b = self._measure(ctx, label)
+            growth = b / max(a, 1e-9)
+            ctx.metric(f"{label}()", f"{a * 1e6:.2f} → {b * 1e6:.2f} µs/call", context=f"×{growth:.1f} for {factor:.0f}× the items")
+            # grew with the size, and is slow enough in absolute terms that this isn't timer noise
+            if growth > factor / 2.5 and b > 2e-6:
+                slow.append((label, growth))
+        if slow:
+            label, growth = max(slow, key=lambda x: x[1])
+            names = ", ".join(f"{l}()" for l, _ in slow)
+            details = [
+                f"{names} took longer per call as the structure grew: ×{growth:.1f} for {factor:.0f}× the items, "
+                f"like O(n). The target is {self.target}.",
+                "Look for a step that scans or shifts every item: list.remove(x), x in a list, list.index(x),",
+                "list.pop(0), list.insert(0, x), or building a new list or set inside the operation.",
+            ]
+            raise Fail(f"{names} gets slower as the structure grows", details)

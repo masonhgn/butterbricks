@@ -15,3 +15,6 @@ web/implementation/py
 web/patterns/patterns.json
 web/patterns/py
 categories/patterns/solutions
+web/structures/structures.json
+web/structures/py
+categories/structures/solutions

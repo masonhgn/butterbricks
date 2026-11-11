@@ -16,7 +16,7 @@ const PREFIX = "butterbricks:";
 const SYNC_USER = "butterbricks:sync:user";        // the account this browser's saves belong to
 const SYNC_PENDING = "butterbricks:sync:pending";  // keys changed here that the account doesn't have yet
 // what stays in this browser: pane sizes, the timer's paused state, and the sync bookkeeping itself
-const LOCAL_ONLY = /^butterbricks:(migrated$|sync:|sidebar:|home:|[a-z]+:(left-w|results-h|timer-paused)$)/;
+const LOCAL_ONLY = /^butterbricks:(migrated$|sync:|sidebar:|home:|[a-z]+:(left-w|results-h|timer-paused|intro-closed)$)/;
 const isSynced = (key) => key.startsWith(PREFIX) && !LOCAL_ONLY.test(key);
 
 function raw(key, value) {
@@ -264,8 +264,13 @@ async function loadCatalog() {
 }
 
 // how much of each problem is done: 1 or 0 for a pattern problem or SQL challenge, solved parts for an implementation one
+// the brick-based categories, which share one progress format (see bricks.js)
+const CURRICULA = ["patterns", "structures"];
+const solvedIn = (category) => () => { const solved = storedJson(`butterbricks:${category}:progress`, {}).solved || {}; return (key) => (solved[key] ? 1 : 0); };
+
 const DONE = {
-  patterns: () => { const solved = storedJson("butterbricks:patterns:progress", {}).solved || {}; return (key) => (solved[key] ? 1 : 0); },
+  patterns: solvedIn("patterns"),
+  structures: solvedIn("structures"),
   sql: () => { const solved = new Set(storedJson("butterbricks:sql:progress", {}).solved || []); return (key) => (solved.has(key) ? 1 : 0); },
   implementation: () => { const solved = storedJson("butterbricks:implementation:progress", {}).solved || {}; return (key) => (solved[key] || []).length; },
 };
@@ -349,8 +354,8 @@ function activityLog() { return storedJson(ACTIVITY_KEY, []); }
 
 // everything the profile shows, from the catalog and this browser's (synced) saves
 function progressStats() {
-  const stats = { xp: 0, sql: { solved: 0, total: 0, levels: [] }, impl: { parts: 0, totalParts: 0, done: 0, problems: [] },
-    patterns: { solved: 0, total: 0, laid: 0, bricks: [], drills: 0 } };
+  const stats = { xp: 0, sql: { solved: 0, total: 0, levels: [] }, impl: { parts: 0, totalParts: 0, done: 0, problems: [] } };
+  for (const c of CURRICULA) stats[c] = { solved: 0, total: 0, laid: 0, bricks: [], drills: 0 };
   if (!catalog) return { ...stats, ...levelFor(0) };
   for (const cat of catalog.categories) {
     const done = DONE[cat.key]();
@@ -362,22 +367,22 @@ function progressStats() {
         stats.sql.total += g.problems.length;
         stats.xp += solved * XP_RULES.sqlPerLevel * (gi + 1);
       });
-    } else if (cat.key === "patterns") {
-      const p = storedJson("butterbricks:patterns:progress", {});
-      const solved = p.solved || {}, laid = p.laid || {};
+    } else if (CURRICULA.includes(cat.key)) {
+      const p = storedJson(`butterbricks:${cat.key}:progress`, {});
+      const solved = p.solved || {}, laid = p.laid || {}, mine = stats[cat.key];
       for (const g of cat.groups) {
         const done = g.problems.filter((x) => solved[x.key]);
-        stats.patterns.solved += done.length;
-        stats.patterns.total += g.problems.length;
+        mine.solved += done.length;
+        mine.total += g.problems.length;
         stats.xp += done.reduce((n, x) => n + (XP_RULES.patternRole[x.role] || 0), 0);
-        if (laid[g.variant]) { stats.patterns.laid++; stats.xp += XP_RULES.brickLaid; }
-        stats.patterns.bricks.push({ title: g.title, pattern: g.pattern, variant: g.variant, solved: done.length,
+        if (laid[g.variant]) { mine.laid++; stats.xp += XP_RULES.brickLaid; }
+        mine.bricks.push({ title: g.title, pattern: g.pattern, variant: g.variant, solved: done.length,
           total: g.problems.length, laid: !!laid[g.variant], next: (g.problems.find((x) => !solved[x.key]) || g.problems[0]).key });
       }
       // reviews aren't in the catalog: each one done moved its brick a stage on
       stats.xp += XP_RULES.patternRole.review * Object.values(p.reviews || {}).reduce((n, r) => n + r.stage, 0);
-      stats.patterns.drills = Object.values(p.drills || {}).filter((d) => d.ok).length;
-      stats.xp += XP_RULES.drill * stats.patterns.drills;
+      mine.drills = Object.values(p.drills || {}).filter((d) => d.ok).length;
+      stats.xp += XP_RULES.drill * mine.drills;
     } else if (cat.key === "implementation") {
       for (const p of cat.groups.flatMap((g) => g.problems)) {
         const parts = Math.min(done(p.key), p.parts);
@@ -399,16 +404,16 @@ function progressStats() {
   let seconds = 0;
   for (const k of syncedKeys()) if (/:time:/.test(k)) seconds += parseFloat(raw(k)) || 0;
   return { ...stats, ...levelFor(stats.xp), streak, activeDays: days.size, seconds, log,
-    problemsSolved: stats.sql.solved + stats.impl.done + stats.patterns.solved };
+    problemsSolved: stats.sql.solved + stats.impl.done + CURRICULA.reduce((n, c) => n + stats[c].solved, 0) };
 }
 
 // the XP one solve was worth, given the stats with it counted: a SQL challenge by its level, an implementation part
 // ("<problem>#<part>") plus the bonus if it finished the problem
 function solveXp(category, key, stats) {
-  if (category === "patterns-drill") return XP_RULES.drill;
-  if (category === "patterns") {
-    const p = storedJson("butterbricks:patterns:progress", {});
-    const group = catalog.categories.find((c) => c.key === "patterns").groups.find((g) => g.problems.some((x) => x.key === key));
+  if (CURRICULA.some((c) => category === `${c}-drill`)) return XP_RULES.drill;
+  if (CURRICULA.includes(category)) {
+    const p = storedJson(`butterbricks:${category}:progress`, {});
+    const group = catalog.categories.find((c) => c.key === category).groups.find((g) => g.problems.some((x) => x.key === key));
     if (!group) return XP_RULES.patternRole.review;  // reviews aren't in the catalog
     const role = group.problems.find((x) => x.key === key).role;
     const laidNow = p.laid?.[group.variant] && p.laid[group.variant] === p.solved?.[key]?.t;
@@ -510,7 +515,7 @@ async function flush({ keepalive = false } = {}) {
 // both, timers keep the larger total, and anything else (code, notes, drafts) takes the account's copy
 function combine(key, mine, theirs) {
   try {
-    if (key === "butterbricks:patterns:progress") return mergePatternsProgress(JSON.parse(mine), JSON.parse(theirs));
+    if (CURRICULA.some((c) => key === `butterbricks:${c}:progress`)) return mergeBrickProgress(JSON.parse(mine), JSON.parse(theirs));
     if (/:progress$/.test(key)) {
       const a = JSON.parse(mine), b = JSON.parse(theirs);
       if (Array.isArray(b.solved)) b.solved = [...new Set([...(b.solved || []), ...(a.solved || [])])].sort();
@@ -529,9 +534,9 @@ function combine(key, mine, theirs) {
   return theirs;
 }
 
-// two browsers' Patterns progress: every solve from either (unassisted wins), every reveal, every laid brick (the
-// earliest), each brick's furthest review, and every drill (right wins)
-function mergePatternsProgress(a, b) {
+// two browsers' progress in a brick-based category: every solve from either (unassisted wins), every reveal, every
+// laid brick (the earliest), each brick's furthest review, and every drill (right wins)
+function mergeBrickProgress(a, b) {
   const out = { ...b };
   const map = (k) => ({ ...(a[k] || {}), ...(b[k] || {}) });
   out.revealed = map("revealed");

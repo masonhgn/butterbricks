@@ -9,6 +9,11 @@ One list of problems, sorted into categories:
   structure, new story), a variation (one change) and a stretch. Laid bricks come back for review after 1, 3, 7 and
   21 days, and recognition drills train naming the pattern from a bare problem statement.
   `docs/patterns-taxonomy.md` has the model, the naming rule and the plan; Arrays & Hashing is built.
+- **Structures**: designing data structures. Given what a class must do and how fast, choose what to store so every
+  operation is cheap. Tests check answers and, separately, how each operation's time grows with the size of the
+  structure, so correct code with the wrong structure fails, naming the slow operation. Each problem has a design card
+  (what you'll keep, the invariant, each operation's cost) to fill in before coding. `docs/structures-taxonomy.md` has
+  the model and plan; Building blocks and the first cross-indexed technique are built.
 - **SQL**: 78 challenges in 10 levels, from `SELECT *` to window functions, data changes and multi-step boss
   problems, against a real SQLite database of a small online store (customers, orders, products, employees).
 - **Implementation**: the "small implementation" interview round. You get a realistic scenario, build a small system
@@ -77,6 +82,20 @@ Drag the dividers to resize the panes.
   and a failing one says which mistake it caught.
 - A brick is **laid** when its variation or stretch is solved without revealing that problem's solution.
 
+### Structures
+
+The same wall, bricks, reviews and drills as Patterns, on the same engine (`web/bricks.js`), plus:
+
+- An **operations table** on every problem: each method and the cost it must have.
+- A **design card**: what you'll keep, the invariant, each operation's cost. It's saved as you type; ours shows once
+  you've solved the problem (opening it earlier counts as revealing the solution).
+- **Worked designs**: a brick's first problem builds the design one question at a time (which operation is the
+  bottleneck, what fixes it, what must stay true), then unblurs the code to step through, with every field of the
+  object shown as it changes.
+- **Cost tests** (`CostTest` in `categories/framework/tests.py`): each operation is timed at two sizes 10× apart; time
+  per call that grows with the size fails, with the numbers. Timing can't tell O(log n) from O(1), so targets only say
+  which operations must not grow.
+
 ### SQL
 
 - The **Challenge** tab has the prompt and hints, **Lesson** the level's lesson (a new level opens on it), **Schema**
@@ -118,6 +137,7 @@ Drag the dividers to resize the panes.
 ./butterbricks.py                                              # the categories
 ./butterbricks.py patterns                                     # the pattern problems
 ./butterbricks.py patterns badge-scanned-twice                 # writes categories/patterns/solutions/<problem>.py, runs every test
+./butterbricks.py structures raffle                            # the same, for a Structures problem
 ./butterbricks.py sql                                          # the SQL challenges, one after another
 ./butterbricks.py implementation                               # the implementation problems
 ./butterbricks.py implementation fulfillment                   # writes categories/implementation/solutions/fulfillment.py, runs part 1's samples
@@ -139,10 +159,14 @@ butterbricks.py            the terminal version
 web/                       the site: index.html (home: every problem), common.css/common.js (shared: the sidebar, accounts, sync,
                            editor, the pixel look), logo.svg
 tools/pixelart.py          draws the logo
-web/<category>/            each category's page; pyworker.js and pyrun.js run Python for Patterns and Implementation
+web/<category>/            each category's page; bricks.js/bricks.css are the engine for Patterns and Structures, and
+                           pyworker.js/pyrun.js run Python for them and for Implementation
 categories/framework/      the test framework shared by Patterns and Implementation: CallTest, OpsTest,
                            ScenarioTest, and the runner (in the terminal and, through Pyodide, the browser)
-categories/patterns/       bricks/ (the model and one file per pattern), trace.py (worked-example traces)
+categories/framework/      also: curriculum.py (the brick model), trace.py (worked-example traces) and
+                           curriculum_tools.py (build, self-test and terminal for brick-based categories)
+categories/patterns/       bricks/ (one file per pattern)
+categories/structures/     bricks/ (one file per family)
 categories/sql/            challenges.py (lessons and challenges), dataset.py (the data), engine.py (the checker)
 categories/implementation/ problems/ (one file each)
 ```
