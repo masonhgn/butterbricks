@@ -155,7 +155,7 @@ def current_user():
     uid = session.get("uid")
     if uid is None:
         return None
-    row = db().execute("SELECT id, username FROM users WHERE id = ?", (uid,)).fetchone()
+    row = db().execute("SELECT id, username, created_at FROM users WHERE id = ?", (uid,)).fetchone()
     if row is None:
         session.clear()
     return row
@@ -178,7 +178,7 @@ def start_session(user_id):
 
 
 def user_json(row):
-    return {"username": row["username"]}
+    return {"username": row["username"], "joined": row["created_at"]}
 
 
 #accounts
@@ -220,7 +220,7 @@ def signup():
     except sqlite3.IntegrityError:
         return error("That username is taken.", 409)
     start_session(cur.lastrowid)
-    return jsonify({"user": {"username": username}})
+    return jsonify({"user": {"username": username, "joined": time.time()}})
 
 
 @app.post("/api/login")
@@ -231,7 +231,7 @@ def login():
     keys = (f"ip:{client_address()}", f"user:{username.lower()}")
     if throttled(*keys):
         return error("Too many attempts. Try again in a few minutes.", 429)
-    row = db().execute("SELECT id, username, password_hash FROM users WHERE username = ?", (username,)).fetchone()
+    row = db().execute("SELECT id, username, password_hash, created_at FROM users WHERE username = ?", (username,)).fetchone()
     if not check_password_hash(row["password_hash"] if row else DUMMY_HASH, password) or row is None:
         record_failure(*keys)
         return error("Wrong username or password.", 401)

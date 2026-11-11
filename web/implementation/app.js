@@ -398,6 +398,7 @@ function finish(problem, part, mode, results) {
     return;
   }
   const first = markSolved(problem.key, part);
+  if (first) logSolve("implementation", `${problem.key}#${part}`, `${problem.title} · part ${part}`);
   celebrate(part === problem.parts.length, summary, document.querySelector(".editor"));
   renderSidebar();
   renderStatement();

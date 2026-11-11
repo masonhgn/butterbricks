@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Profile · Butterbricks</title>
+<link rel="icon" href="../logo.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tinos:wght@400;700&display=swap">
+<link rel="stylesheet" href="../common.css?v=bbs-5">
+<style>
+  body { display: block; overflow: auto; }
+  .titlebar { height: 50px; }
+  .profile { max-width: 960px; margin: 0 auto; padding: 32px 20px 64px; display: flex; flex-direction: column; gap: 18px; }
+  .panel { padding: 18px 22px; }
+  .panel h2 { font: 700 21px var(--serif); margin: 0 0 12px; }
+
+  .id-card { display: flex; gap: 24px; align-items: center; }
+  .level-tile {
+    flex: none; width: 112px; height: 112px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: var(--gold-light); border: 3px solid var(--edge); color: #3d2a05;
+    box-shadow: inset 3px 3px 0 #fbe6a2, inset -3px -3px 0 #d39a28, 4px 4px 0 rgba(122, 78, 18, .25);
+  }
+  .level-tile .word { font: 700 14px var(--ui); letter-spacing: .12em; }
+  .level-tile .num { font: 700 56px/1 var(--serif); }
+  .id-main { flex: 1; min-width: 0; }
+  .id-main h1 { margin: 0; font: 700 34px var(--serif); }
+  .id-main .title { font: 700 19px var(--serif); color: #8f5f10; margin-top: 2px; }
+  .id-main .since { color: var(--muted); font-size: 14px; margin-top: 2px; }
+  .xp { margin-top: 12px; }
+  .xp .progress-track { width: 100%; height: 18px; }
+  .xp .line { display: flex; justify-content: space-between; font-size: 14px; color: var(--muted); margin-top: 5px; }
+  .xp .line b { color: var(--text); }
+
+  .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .tile { padding: 14px 16px; }
+  .tile .v { font: 700 30px/1.1 var(--serif); }
+  .tile .k { font-size: 13.5px; color: var(--muted); margin-top: 4px; }
+
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .bar-row { display: grid; grid-template-columns: minmax(0, 1fr) 120px 48px; gap: 10px; align-items: center; padding: 4px 0; font-size: 14.5px; }
+  .bar-row .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar-row .progress-track { width: 100%; height: 12px; padding: 1px; }
+  .bar-row .n { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .bar-row.full .name { color: var(--done); font-weight: 600; }
+  .impl-row { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); color: var(--text); text-decoration: none; }
+  .impl-row:last-child { border-bottom: 0; }
+  .impl-row:hover .t { text-decoration: underline; }
+  .impl-row .t { flex: 1; font-weight: 600; }
+  .impl-row .pips { margin: 0; }
+  .impl-row .n { color: var(--muted); font-size: 14px; width: 70px; text-align: right; }
+
+  .recent { list-style: none; margin: 0; padding: 0; }
+  .recent li { display: flex; gap: 12px; align-items: baseline; padding: 7px 0; border-bottom: 1px solid var(--line); }
+  .recent li:last-child { border-bottom: 0; }
+  .recent .when { color: var(--muted); font-size: 13.5px; width: 110px; flex: none; }
+  .recent .what { flex: 1; }
+  .recent .what a { color: var(--text); }
+  .tag { font: 700 13px var(--serif); padding: 0 7px; border: 2px solid; white-space: nowrap; }
+  .tag.sql { color: #1f5a73; border-color: #9cc6d6; background: #e9f4f8; }
+  .tag.implementation { color: #6a3d86; border-color: #cdb4dd; background: #f4ecf9; }
+  .note { color: var(--muted); font-size: 13.5px; }
+  .signed-out { text-align: center; padding: 40px 22px; }
+  .signed-out p { color: var(--muted); }
+
+  @media (max-width: 720px) {
+    .cols { grid-template-columns: 1fr; }
+    .tiles { grid-template-columns: repeat(2, 1fr); }
+    .id-card { flex-direction: column; align-items: flex-start; }
+  }
+</style>
+</head>
+<body>
+
+<header class="titlebar">
+  <a class="brand" href="../"><img class="logo" src="../logo.svg" alt=""><span class="wordmark">Butterbricks</span></a>
+</header>
+
+<main class="profile" id="profile"></main>
+
+<script src="../common.js?v=bbs-5"></script>
+<script>
+"use strict";
+
+function ago(t) {
+  const s = (Date.now() - t) / 1000;
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
+  if (s < 7 * 86400) return plural(Math.floor(s / 86400), "day") + " ago";
+  return new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
+function duration(seconds) {
+  const m = Math.round(seconds / 60);
+  return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60} min`;
+}
+
+function bar(fraction) {
+  return `<div class="progress-track"><div class="progress-fill" style="width:${Math.round(100 * fraction)}%"></div></div>`;
+}
+
+function render() {
+  const box = $("profile");
+  if (!account.user) {
+    box.innerHTML = `<section class="panel signed-out"><h2>Your profile</h2>
+      <p>${account.online ? "Sign in to see your level, XP and everything you've solved." : "Profiles need the Butterbricks server."}</p></section>`;
+    if (account.online) {
+      const b = el("button", "btn primary", "Sign in");
+      b.onclick = () => openAccountBox();
+      box.querySelector(".signed-out").append(b);
+    }
+    return;
+  }
+  const st = progressStats();
+  const joined = account.user.joined ? new Date(account.user.joined * 1000).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" }) : "";
+  box.innerHTML = `
+    <section class="panel id-card">
+      <div class="level-tile" title="${esc(st.title)}"><span class="word">LEVEL</span><span class="num">${st.level}</span></div>
+      <div class="id-main">
+        <h1>${esc(account.user.username)}</h1>
+        <div class="title">${esc(st.title)}</div>
+        ${joined ? `<div class="since">Member since ${esc(joined)}</div>` : ""}
+        <div class="xp">${bar(st.into / st.span)}
+          <div class="line"><span><b>${st.xp.toLocaleString()} XP</b></span><span>${(st.next - st.xp).toLocaleString()} XP to level ${st.level + 1}</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="tiles">
+      <div class="panel tile"><div class="v">${st.xp.toLocaleString()}</div><div class="k">total XP</div></div>
+      <div class="panel tile"><div class="v">${st.problemsSolved}</div><div class="k">problems solved</div></div>
+      <div class="panel tile"><div class="v">${st.sql.solved}<span class="note"> / ${st.sql.total}</span></div><div class="k">SQL challenges</div></div>
+      <div class="panel tile"><div class="v">${st.impl.parts}<span class="note"> / ${st.impl.totalParts}</span></div><div class="k">implementation parts</div></div>
+      <div class="panel tile"><div class="v">${st.streak}</div><div class="k">day streak${st.activeDays ? ` · ${plural(st.activeDays, "active day")}` : ""}</div></div>
+      <div class="panel tile"><div class="v">${duration(st.seconds)}</div><div class="k">on implementation problems</div></div>
+    </section>
+
+    <section class="cols">
+      <div class="panel"><h2>SQL by level</h2>${st.sql.levels.map((l, i) => `
+        <div class="bar-row${l.solved === l.total ? " full" : ""}"><span class="name">${i + 1}. ${esc(l.title)}</span>${bar(l.solved / l.total)}<span class="n">${l.solved}/${l.total}</span></div>`).join("")}
+      </div>
+      <div class="panel"><h2>Implementation</h2><div id="impl-list"></div></div>
+    </section>
+
+    <section class="panel"><h2>Recent solves</h2><ul class="recent" id="recent"></ul></section>
+
+    <p class="note">XP: a SQL challenge is worth ${XP_RULES.sqlPerLevel} XP times its level; an implementation part ${XP_RULES.implPart} XP, plus ${XP_RULES.implProblemBonus} for finishing a whole problem. Each level takes 100 XP more than the last.</p>`;
+
+  const impl = $("impl-list");
+  for (const p of st.impl.problems) {
+    const row = el("a", "impl-row", `<span class="t">${esc(p.title)}</span>`);
+    row.href = `/implementation/#${encodeURIComponent(p.key)}`;
+    const pips = el("span", "pips");
+    for (let i = 0; i < p.parts; i++) pips.append(el("span", `pip${i < p.solvedParts ? " done" : ""}`));
+    row.append(pips, el("span", "n", `${p.solvedParts}/${p.parts} parts`));
+    impl.append(row);
+  }
+
+  const recent = $("recent");
+  const titles = {};
+  for (const c of catalog.categories) titles[c.key] = c.title;
+  for (const a of st.log.slice(0, 15)) {
+    const href = a.c === "sql" ? `/sql/#${encodeURIComponent(a.k)}` : `/implementation/#${encodeURIComponent(a.k.split("#")[0])}`;
+    recent.append(el("li", "", `<span class="when">${esc(ago(a.t))}</span><span class="what"><a href="${href}">${esc(a.label)}</a></span><span class="tag ${esc(a.c)}">${esc(titles[a.c] || a.c)}</span>`));
+  }
+  if (!st.log.length) recent.append(el("li", "note", "Problems you solve from now on show up here. Solves from before profiles existed count toward your XP, but weren't dated."));
+}
+
+ready.then(loadCatalog).then(render);
+</script>
+</body>
+</html>

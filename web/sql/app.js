@@ -108,6 +108,7 @@ async function runChallenge(index, sql) {
     ...out,
     solution: ch.solution,
     level_complete: firstTime && levelDone,
+    first_time: firstTime,
     all_complete: solved.size === S.challenges.length,
     progress: saveProgress(solved, index),
   };
@@ -502,6 +503,7 @@ async function run() {
     setStatus("wrong", "✗ Not quite", `${esc(d.message)}<div class="tip">${tip}</div>${changedNote}`);
   } else {
     S.progress = d.progress;
+    if (d.first_time) logSolve("sql", ch.key, ch.title);
     const tries = S.attempts === 1 ? "first try!" : `${S.attempts} attempts`;
     let html = `Correct, ${tries}`;
     if (d.all_complete && d.level_complete) html += `<div class="celebrate">All ${S.challenges.length} challenges cleared. You are officially dangerous with SQL.</div>`;

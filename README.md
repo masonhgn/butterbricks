@@ -40,6 +40,18 @@ The server never runs your code; it stores the site's `butterbricks:*` localStor
 Passwords are hashed with scrypt, sessions are signed HttpOnly cookies, sign-in is throttled, and state-changing
 requests must be same-origin JSON.
 
+## Profiles and XP
+
+Every solve earns XP: a SQL challenge is worth 10 XP times its level (Level 1 is 10, Level 10 is 100), an
+implementation part 100 XP, plus 150 for finishing a whole problem. Each level takes 100 XP more than the last (level
+2 at 100, 3 at 300, 4 at 600, ...), with titles from Fresh Cream to Butter Legend. The header shows your level, and
+leveling up announces itself.
+
+`/profile/` shows your level and XP, problems solved, SQL progress by level, your implementation problems, your day
+streak, time spent, and recent solves. Solves are logged with their dates from the moment profiles existed; XP is
+computed from your saved progress, so older solves count too. It's all derived from the synced saves
+(`butterbricks:activity` holds the solve log), so there's nothing extra on the server.
+
 ## The site
 
 The home page lists every problem, tagged by category, with a search box (`/` focuses it; it searches titles,

@@ -256,11 +256,11 @@ function confetti(count) {
 //the problem list, from catalog.json (built by build.py). The home page lists every problem; a category's page calls
 //showProblemList, which lists that category's problems in the sidebar, with a link back to the home page
 
-let catalog = null;
+let catalog = null, catalogLoading = null;
 
 async function loadCatalog() {
-  if (!catalog) catalog = await (await fetch("/catalog.json")).json();
-  return catalog;
+  catalogLoading ||= fetch("/catalog.json").then((r) => r.json()).then((c) => (catalog = c));
+  return catalogLoading;
 }
 
 // how much of each problem is done: 1 or 0 for a SQL challenge, the number of solved parts for an implementation one
@@ -319,6 +319,105 @@ function showProblemList(category, currentKey, onPick) {
   bar.querySelector(".current")?.scrollIntoView({ block: "nearest" });
 }
 
+//progression: XP for every solve, levels with butter titles, and a log of solves with dates (for the streak and the
+//profile's recent activity). Everything is computed from the synced saves, so it follows the account
+
+const ACTIVITY_KEY = "butterbricks:activity";
+const XP_RULES = {
+  sqlPerLevel: 10,      // a SQL challenge is worth 10 XP times its level: Level 1 is 10, Level 10 is 100
+  implPart: 100,        // each implementation part
+  implProblemBonus: 150 // on top, for finishing every part of a problem
+};
+const TITLES = ["Fresh Cream", "Churner", "Butter Pat", "Half Stick", "Full Stick", "Butter Block", "Bricklayer",
+  "Butter Mason", "Golden Wall", "Butter Tower", "Butter Castle", "Butter Legend"];
+
+// the XP needed to reach a level: 0, 100, 300, 600, 1000, ... (each level asks 100 more than the last)
+const levelFloor = (level) => 50 * level * (level - 1);
+
+function levelFor(xp) {
+  let level = 1;
+  while (levelFloor(level + 1) <= xp) level++;
+  const floor = levelFloor(level), next = levelFloor(level + 1);
+  return { level, title: TITLES[Math.min(level, TITLES.length) - 1], xp, floor, next, into: xp - floor, span: next - floor };
+}
+
+function activityLog() { return storedJson(ACTIVITY_KEY, []); }
+
+// everything the profile shows, from the catalog and this browser's (synced) saves
+function progressStats() {
+  const stats = { xp: 0, sql: { solved: 0, total: 0, levels: [] }, impl: { parts: 0, totalParts: 0, done: 0, problems: [] } };
+  if (!catalog) return { ...stats, ...levelFor(0) };
+  for (const cat of catalog.categories) {
+    const done = DONE[cat.key]();
+    if (cat.key === "sql") {
+      cat.groups.forEach((g, gi) => {
+        const solved = g.problems.filter((p) => done(p.key)).length;
+        stats.sql.levels.push({ title: g.title, solved, total: g.problems.length });
+        stats.sql.solved += solved;
+        stats.sql.total += g.problems.length;
+        stats.xp += solved * XP_RULES.sqlPerLevel * (gi + 1);
+      });
+    } else if (cat.key === "implementation") {
+      for (const p of cat.groups.flatMap((g) => g.problems)) {
+        const parts = Math.min(done(p.key), p.parts);
+        stats.impl.problems.push({ ...p, solvedParts: parts });
+        stats.impl.parts += parts;
+        stats.impl.totalParts += p.parts;
+        stats.xp += parts * XP_RULES.implPart;
+        if (parts === p.parts) { stats.impl.done++; stats.xp += XP_RULES.implProblemBonus; }
+      }
+    }
+  }
+  const log = activityLog();
+  const days = new Set(log.map((a) => new Date(a.t).toDateString()));
+  let streak = 0;
+  for (const d = new Date(); ; d.setDate(d.getDate() - 1)) {
+    if (days.has(d.toDateString())) streak++;
+    else if (!(streak === 0 && d.toDateString() === new Date().toDateString())) break;  // today can still be pending
+  }
+  let seconds = 0;
+  for (const k of syncedKeys()) if (/:time:/.test(k)) seconds += parseFloat(raw(k)) || 0;
+  return { ...stats, ...levelFor(stats.xp), streak, activeDays: days.size, seconds, log,
+    problemsSolved: stats.sql.solved + stats.impl.done };
+}
+
+// the XP one solve was worth, given the stats with it counted: a SQL challenge by its level, an implementation part
+// ("<problem>#<part>") plus the bonus if it finished the problem
+function solveXp(category, key, stats) {
+  if (category === "sql") {
+    const gi = catalog.categories.find((c) => c.key === "sql").groups.findIndex((g) => g.problems.some((p) => p.key === key));
+    return gi < 0 ? 0 : XP_RULES.sqlPerLevel * (gi + 1);
+  }
+  const p = stats.impl.problems.find((x) => x.key === key.split("#")[0]);
+  return XP_RULES.implPart + (p && p.solvedParts === p.parts ? XP_RULES.implProblemBonus : 0);
+}
+
+// called by a category page right after it saves a first-time solve: logs it, and celebrates a new level
+function logSolve(category, key, label) {
+  const log = activityLog();
+  log.unshift({ t: Date.now(), c: category, k: key, label });
+  storage(ACTIVITY_KEY, JSON.stringify(log.slice(0, 300)));
+  if (!catalog) return;
+  const now = progressStats();
+  const before = levelFor(now.xp - solveXp(category, key, now)).level;
+  renderLevelBadge(now);
+  if (now.level > before) toast(`Level up! You're a ${now.title} now (level ${now.level}).`);
+}
+
+function renderLevelBadge(stats = progressStats()) {
+  const badge = $("level-badge");
+  if (!badge) return;
+  badge.textContent = `Lv ${stats.level}`;
+  badge.title = `${stats.title} · ${stats.xp.toLocaleString()} XP`;
+}
+
+function toast(text) {
+  const t = el("div", "toast", esc(text));
+  document.body.append(t);
+  setTimeout(() => t.classList.add("leaving"), 4200);
+  setTimeout(() => t.remove(), 4800);
+}
+
 //accounts. Signing in is optional for practicing and required for submitting. A signed-in browser pulls the account's
 //saves when a page loads and sends its own changes a moment after they happen; keys it couldn't send yet wait in
 //SYNC_PENDING (in localStorage, so a closed tab doesn't lose them) and go first next time
@@ -375,8 +474,8 @@ async function flush({ keepalive = false } = {}) {
   }
 }
 
-// two versions of the same key, from this browser and from the account: progress is the union of both, timers keep
-// the larger total, and anything else (code, notes, drafts) takes the account's copy
+// two versions of the same key, from this browser and from the account: progress and the solve log are the union of
+// both, timers keep the larger total, and anything else (code, notes, drafts) takes the account's copy
 function combine(key, mine, theirs) {
   try {
     if (/:progress$/.test(key)) {
@@ -388,6 +487,11 @@ function combine(key, mine, theirs) {
       return JSON.stringify(b);
     }
     if (/:time:/.test(key)) return String(Math.max(parseFloat(mine) || 0, parseFloat(theirs) || 0));
+    if (key === ACTIVITY_KEY) {
+      const seen = new Set(), both = [];
+      for (const a of [...JSON.parse(theirs), ...JSON.parse(mine)]) if (!seen.has(`${a.t}|${a.k}`)) { seen.add(`${a.t}|${a.k}`); both.push(a); }
+      return JSON.stringify(both.sort((x, y) => y.t - x.t).slice(0, 300));
+    }
   } catch (e) {}
   return theirs;
 }
@@ -464,8 +568,12 @@ function renderAccount() {
   box.innerHTML = "";
   if (!account.online) return;
   if (account.user) {
-    box.append(el("span", "who", `<span class="who-icon">●</span> ${esc(account.user.username)}`), el("span", "sync-state", ""));
+    const who = el("a", "who", `<span class="level-badge" id="level-badge">Lv ·</span> ${esc(account.user.username)}`);
+    who.href = "/profile/";
+    who.title = "Your profile";
+    box.append(who, el("span", "sync-state", ""));
     box.lastChild.id = "sync-state";
+    loadCatalog().then(() => renderLevelBadge(), () => {});
     const out = el("button", "btn ghost small", "Sign out");
     out.onclick = signOut;
     box.append(out);
