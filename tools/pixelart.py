@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""draws the site's pixel art: web/logo.svg (three sticks of butter, stacked) and the tiling textures, which it
-prints as CSS custom properties to paste into web/common.css.
+"""draws the site's pixel art: web/logo.svg (three sticks of butter, stacked) and the parchment texture, which it
+prints as a CSS custom property to paste into web/common.css.
 
 Everything is drawn pixel by pixel on a small grid, then written as one <rect> per run of same-colored pixels with
 shape-rendering="crispEdges", so it stays sharp at any size."""
@@ -80,7 +80,7 @@ def logo():
     return grid
 
 
-#textures: drawn at 32px or so and shown at 2x, so their pixels match the 2px pixels of the text
+#textures: drawn at 32px and shown at 2x, so their pixels match the site's 2px pixel frames
 
 def parchment(rng, w=32, h=32):
     base, flecks = "#fffaee", ["#f6ead0", "#fbf2dc", "#f3e4c2"]
@@ -88,21 +88,6 @@ def parchment(rng, w=32, h=32):
     for _ in range(14):
         x, y = rng.randrange(w), rng.randrange(h)
         grid[y][x] = rng.choice(flecks)
-    return grid
-
-
-def planks(rng, colors, w=128, h=16):
-    """two planks per tile, each 8 rows: a highlight row, wood with grain streaks, a seam"""
-    hi, wood, grain, seam = colors
-    grid = []
-    for plank in range(h // 8):
-        rows = [[hi] * w] + [[wood] * w for _ in range(6)] + [[seam] * w]
-        for _ in range(12):
-            r = rng.randrange(1, 7)
-            x, n = rng.randrange(w), rng.randrange(3, 10)
-            for i in range(n):
-                rows[r][(x + i) % w] = grain
-        grid += rows
     return grid
 
 
@@ -115,7 +100,6 @@ def main():
         f.write(to_svg(logo(), "Butterbricks") + "\n")
     rng = random.Random(7)
     print("  --tex-parchment:", css_url(parchment(rng)) + ";")
-    print("  --tex-cream:", css_url(planks(rng, ("#fffaf0", "#fdf2d6", "#f8e7bd", "#ecd7a2"))) + ";")
 
 
 if __name__ == "__main__":

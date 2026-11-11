@@ -101,30 +101,24 @@ function highlighted(src, mode) {
   return pre;
 }
 
-//the pixel look for text: render it normally (Times New Roman), then resample it onto a 2px grid. #px-text averages
-//each 2x2 cell first and sharpens the edges, which keeps small text readable; #px-crisp gives hard pixels, for the
-//wordmark. Blocks are built from offset copies of one sample per cell, so they're 2 CSS px at any screen density
+//the pixel look for the big wordmark on the home page: render it normally, then resample it onto a 2px grid with hard
+//edges. The blocks are built from offset copies of one sample per cell, so they're 2 CSS px at any screen density
 
-(function pixelFilters() {
-  const cell = (source) => `
-    <feFlood x="0" y="0" width="1" height="1" flood-color="#000" result="dot"/>
-    <feComposite in="dot" in2="dot" operator="over" width="2" height="2" result="cell"/>
-    <feTile in="cell" result="grid"/>
-    <feComposite in="${source}" in2="grid" operator="in" result="s"/>
-    <feOffset in="s" dx="1" result="s1"/><feOffset in="s" dy="1" result="s2"/><feOffset in="s" dx="1" dy="1" result="s3"/>
-    <feMerge result="blocks"><feMergeNode in="s"/><feMergeNode in="s1"/><feMergeNode in="s2"/><feMergeNode in="s3"/></feMerge>`;
+(function pixelFilter() {
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.setAttribute("width", "0");
   svg.setAttribute("height", "0");
   svg.setAttribute("aria-hidden", "true");
   svg.style.position = "absolute";
   svg.innerHTML = `
-    <filter id="px-text" x="0" y="0" width="1" height="1" color-interpolation-filters="sRGB">
-      <feGaussianBlur in="SourceGraphic" stdDeviation="0.55" result="soft"/>${cell("soft")}
-      <feComponentTransfer in="blocks"><feFuncA type="linear" slope="2.2" intercept="-0.35"/></feComponentTransfer>
-    </filter>
     <filter id="px-crisp" x="0" y="0" width="1" height="1" color-interpolation-filters="sRGB">
-      <feGaussianBlur in="SourceGraphic" stdDeviation="0.55" result="soft"/>${cell("soft")}
+      <feGaussianBlur in="SourceGraphic" stdDeviation="0.55" result="soft"/>
+      <feFlood x="0" y="0" width="1" height="1" flood-color="#000" result="dot"/>
+      <feComposite in="dot" in2="dot" operator="over" width="2" height="2" result="cell"/>
+      <feTile in="cell" result="grid"/>
+      <feComposite in="soft" in2="grid" operator="in" result="s"/>
+      <feOffset in="s" dx="1" result="s1"/><feOffset in="s" dy="1" result="s2"/><feOffset in="s" dx="1" dy="1" result="s3"/>
+      <feMerge result="blocks"><feMergeNode in="s"/><feMergeNode in="s1"/><feMergeNode in="s2"/><feMergeNode in="s3"/></feMerge>
       <feComponentTransfer in="blocks"><feFuncA type="discrete" tableValues="0 0 1 1"/></feComponentTransfer>
     </filter>`;
   document.body.prepend(svg);
