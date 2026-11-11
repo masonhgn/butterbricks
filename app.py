@@ -98,6 +98,16 @@ init_db()
 #request guards
 
 @app.before_request
+def canonical_host():
+    """www.butterbricks.org and butterbricks.org would be separate sites to the browser (separate sign-ins and saved
+    progress), so www sends everyone to the bare domain"""
+    host = request.host
+    if host.startswith("www."):
+        return redirect(f"https://{host[4:]}{request.full_path.rstrip('?')}", code=301)
+    return None
+
+
+@app.before_request
 def same_origin_json_only():
     """state-changing API calls must be JSON from this site's own pages. A form on another site can't send JSON
     without a CORS preflight, which this server never approves, so this plus SameSite cookies covers CSRF"""
