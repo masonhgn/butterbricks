@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ImplQuest</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<link rel="stylesheet" href="style.css?v=implquest-3">
+</head>
+<body>
+
+<header class="titlebar">
+  <div class="brand"><span class="logo">⚙</span> ImplQuest</div>
+  <div class="progress" title="parts solved">
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+    <span id="progress-text">0 / 0</span>
+  </div>
+  <div class="timer" title="time spent on this problem">
+    <span id="timer-text">00:00</span>
+    <button class="btn ghost small" id="btn-timer">Pause</button>
+    <button class="btn ghost small" id="btn-timer-reset">Reset</button>
+  </div>
+  <div class="titlebar-actions">
+    <span class="py-status" id="py-status">Loading Python…</span>
+    <button class="btn ghost" id="btn-reset-progress" title="erase all progress, code and notes">Reset progress</button>
+  </div>
+</header>
+
+<div class="app" id="app">
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <section class="statement-pane">
+    <div class="tabs" id="left-tabs">
+      <button class="tab on" data-tab="problem">Problem</button>
+      <button class="tab" data-tab="discussion">Discussion</button>
+      <button class="tab" data-tab="notes">Notes</button>
+      <button class="tab" data-tab="solution">Solution</button>
+    </div>
+    <div class="left-body" id="tab-problem">
+      <div class="problem-head">
+        <h1 id="problem-title"></h1>
+        <div class="meta" id="problem-meta"></div>
+      </div>
+      <div class="part-chips" id="part-chips"></div>
+      <div class="statement" id="statement"></div>
+    </div>
+    <div class="left-body" id="tab-discussion" hidden>
+      <h2>What an interviewer would ask</h2>
+      <p class="muted">In these interviews, explaining your choices counts as much as passing the tests. Answer these out loud, or write the answers in Notes.</p>
+      <ol class="discussion" id="discussion"></ol>
+    </div>
+    <div class="left-body notes-body" id="tab-notes" hidden>
+      <h2>Design notes</h2>
+      <p class="muted">Write down your data structures, each method's cost, and the tradeoffs you'd defend. Saved in this browser.</p>
+      <textarea id="notes" spellcheck="true" placeholder="pending orders: dict used as an ordered set, because…"></textarea>
+    </div>
+    <div class="left-body" id="tab-solution" hidden>
+      <div id="solution-locked">
+        <h2>Reference solution</h2>
+        <p class="muted">The reference solution and a writeup of its tradeoffs. It's more useful once you've made your own attempt and written your notes.</p>
+        <button class="btn" id="btn-reveal">Reveal the reference solution</button>
+      </div>
+      <div id="solution-body" hidden></div>
+    </div>
+  </section>
+
+  <div class="vsplit" id="vsplit" title="drag to resize"></div>
+
+  <section class="code-pane">
+    <div class="editor-bar">
+      <span class="editor-label">solution.py</span>
+      <span class="muted small">Python 3.12</span>
+      <span class="spacer"></span>
+      <button class="btn ghost small" id="btn-reset-code" title="replace your code with the starter code">Reset code</button>
+    </div>
+    <div class="editor" id="editor"></div>
+    <div class="run-bar">
+      <span class="muted small" id="run-target"></span>
+      <span class="spacer"></span>
+            <button class="btn" id="btn-run" title="run the sample tests (Ctrl+Enter)">▶ Run samples</button>
+      <button class="btn primary" id="btn-submit" title="run every test, hidden ones included (Ctrl+Shift+Enter)">Submit</button>
+    </div>
+    <div class="hsplit" id="hsplit" title="drag to resize"></div>
+    <div class="results-pane">
+      <div class="tabs" id="bottom-tabs">
+        <button class="tab on" data-tab="results">Test results</button>
+        <button class="tab" data-tab="console">Console</button>
+      </div>
+      <div class="bottom-body" id="tab-results">
+        <div class="results-empty muted" id="results-empty">Run the samples to check your code against the examples, then Submit to run the hidden tests too. Submitting with every test passing completes the part and unlocks the next one.</div>
+        <div class="results-summary" id="results-summary" hidden></div>
+        <div class="results" id="results"></div>
+      </div>
+      <div class="bottom-body console" id="tab-console" hidden>
+        <div class="console-input">
+          <textarea id="scratch" spellcheck="false"></textarea>
+          <div class="console-actions">
+            <button class="btn" id="btn-scratch">▶ Run snippet</button>
+            <span class="muted small">Runs with your solution's names already in scope. Use print().</span>
+          </div>
+        </div>
+        <pre class="console-output" id="scratch-output"></pre>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/selection/active-line.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/comment/comment.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/runmode/runmode.min.js"></script>
+<script src="app.js?v=implquest-3"></script>
+</body>
+</html>
