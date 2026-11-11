@@ -1,0 +1,14 @@
+.git
+.github
+**/__pycache__
+.DS_Store
+.venv
+instance
+categories/sql/store.db
+categories/sql/.history
+categories/implementation/solutions
+web/catalog.json
+web/sql/data.json
+web/sql/store.db
+web/implementation/problems.json
+web/implementation/py

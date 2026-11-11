@@ -4,31 +4,7 @@
 
 .editor .CodeMirror { font-size: 15px; }
 .CodeMirror-hints { font-family: var(--mono); font-size: 14px; border-radius: 0; box-shadow: 0 2px 6px rgba(0,0,0,.18); }
-li.CodeMirror-hint-active { background: var(--dark); }
-
-/* sidebar: levels and their challenges */
-
-.level-group h2 { display: flex; justify-content: space-between; gap: 8px; position: sticky; top: 0; background: var(--chrome); z-index: 1; }
-.challenge-link {
-  display: flex;
-  gap: 8px;
-  align-items: baseline;
-  width: 100%;
-  border: 0;
-  border-left: 4px solid transparent;
-  background: transparent;
-  text-align: left;
-  padding: 4px 10px 4px 8px;
-  cursor: pointer;
-  color: var(--text);
-  font-size: 14.5px;
-}
-.challenge-link:hover { background: var(--chrome-2); }
-.challenge-link .num { color: var(--muted); width: 22px; text-align: right; flex: none; font-variant-numeric: tabular-nums; }
-.challenge-link .mark { width: 14px; flex: none; text-align: center; color: var(--line-strong); }
-.challenge-link.solved { color: var(--done); }
-.challenge-link.solved .mark, .challenge-link.solved .num { color: var(--done); font-weight: 700; }
-.challenge-link.current { border-left-color: var(--dark); background: var(--bg); font-weight: 700; }
+li.CodeMirror-hint-active { background: var(--gold); color: #2b1d05; }
 
 /* the challenge, lesson, schema and solution tabs */
 
@@ -91,29 +67,29 @@ table.grid { border-collapse: separate; border-spacing: 0; font: 14.5px/1.3 var(
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.grid thead th { position: sticky; background: var(--chrome); font-weight: 400; color: #3b3b3b; z-index: 2; }
+.grid thead th { position: sticky; background: var(--chrome); font-weight: 400; color: var(--muted); z-index: 2; }
 .grid thead tr.letters th { top: 0; text-align: center; font-size: 12.5px; height: 23px; }
 .grid thead tr.names th { top: 23px; text-align: left; font-weight: 700; color: var(--text); cursor: pointer; user-select: none; border-bottom: 1px solid var(--line-strong); }
 .grid thead tr.names th:hover { background: var(--chrome-2); }
 .grid thead th .arrow { margin-left: 4px; font-size: 10px; }
 .grid th.corner { left: 0; z-index: 3; }
-.grid tbody th { position: sticky; left: 0; background: var(--chrome); color: #3b3b3b; font-weight: 400; text-align: center; min-width: 44px; font-size: 12.5px; z-index: 1; border-right: 1px solid var(--line-strong); }
+.grid tbody th { position: sticky; left: 0; background: var(--chrome); color: var(--muted); font-weight: 400; text-align: center; min-width: 44px; font-size: 12.5px; z-index: 1; border-right: 1px solid var(--line-strong); }
 .grid td { cursor: cell; background: var(--cell); }
-.grid tbody tr:nth-child(even) td { background: #f3f4f2; }
+.grid tbody tr:nth-child(even) td { background: #fdf9ee; }
 .grid tbody tr:hover td { background: var(--chrome-2); }
 .grid td.num { text-align: right; font-variant-numeric: tabular-nums; }
-.grid td.null { color: #9a9a9a; font-style: italic; }
-.grid td.sel { outline: 2px solid var(--dark); outline-offset: -2px; }
+.grid td.null { color: #b5a685; font-style: italic; }
+.grid td.sel { outline: 2px solid var(--gold-deep); outline-offset: -2px; }
 .grid th.hl { background: var(--line); color: var(--text); font-weight: 700; }
-.grid tbody tr.changed td { background: var(--butter-soft); font-weight: 600; }
+.grid tbody tr.changed td { background: #fbe7a6; font-weight: 600; }
 
 /* sheet tabs along the bottom, like a spreadsheet */
 
 .sheet-tabs { flex: none; display: flex; align-items: stretch; height: 36px; border-top: 1px solid var(--line-strong); background: var(--chrome); padding-left: 6px; font-size: 14px; }
 .sheet-tab-list { display: flex; overflow-x: auto; min-width: 0; }
-.sheet-tab { display: flex; align-items: center; gap: 6px; border: 0; border-right: 1px solid var(--line); background: transparent; padding: 0 14px; cursor: pointer; color: #3b3b3b; white-space: nowrap; }
+.sheet-tab { display: flex; align-items: center; gap: 6px; border: 0; border-right: 1px solid var(--line); background: transparent; padding: 0 14px; cursor: pointer; color: var(--muted); white-space: nowrap; }
 .sheet-tab:hover { background: var(--chrome-2); }
-.sheet-tab.active { background: var(--cell); color: var(--text); font-weight: 700; box-shadow: inset 0 -3px 0 var(--dark); }
+.sheet-tab.active { background: var(--cell); color: var(--text); font-weight: 700; box-shadow: inset 0 -3px 0 var(--gold); }
 .sheet-tab.special { font-style: italic; }
 .sheet-tab .dot { color: var(--butter-deep); font-size: 20px; line-height: 0; }
 .sheet-tab .close { color: var(--muted); font-weight: 400; padding: 0 2px; border-radius: 2px; }
@@ -125,5 +101,5 @@ table.grid { border-collapse: separate; border-spacing: 0; font: 14.5px/1.3 var(
 .menu button { display: block; width: 100%; border: 0; background: transparent; text-align: left; padding: 5px 12px; cursor: pointer; }
 .menu button:hover { background: var(--chrome-2); }
 .filter { margin: 4px 8px; border: 1px solid var(--line-strong); border-radius: 3px; padding: 2px 8px; width: 190px; font: inherit; background: var(--cell); }
-.filter:focus { outline: 2px solid var(--dark); outline-offset: -1px; }
+.filter:focus { outline: 2px solid var(--gold); outline-offset: -1px; }
 .row-count { align-self: center; color: var(--muted); padding-right: 12px; font-size: 13px; white-space: nowrap; }

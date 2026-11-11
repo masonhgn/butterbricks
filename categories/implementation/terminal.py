@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""implquest: interview-style implementation problems with test suites, run from the terminal
+"""the Butterbricks Implementation problems in the terminal: a test suite per problem. Run it as
+./butterbricks.py implementation
 
-  ./implquest.py                                  list the problems
-  ./implquest.py fulfillment                      copy the starter to solutions/fulfillment.py (first time) and run part 1's sample tests
-  ./implquest.py fulfillment --part 2 --submit    run every test for parts 1 and 2
-  ./implquest.py fulfillment my_file.py           use another file
-  ./implquest.py --selftest                       check every reference solution passes its own tests
+  ./butterbricks.py implementation                  list the problems
+  ./butterbricks.py implementation fulfillment                      copy the starter to solutions/fulfillment.py (first time) and run part 1's sample tests
+  ./butterbricks.py implementation fulfillment --part 2 --submit    run every test for parts 1 and 2
+  ./butterbricks.py implementation fulfillment my_file.py           use another file
+  ./butterbricks.py implementation --selftest                       check every reference solution passes its own tests
 """
 
 import argparse
@@ -93,7 +94,7 @@ def selftest():
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(prog="butterbricks.py implementation", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("problem", nargs="?")
     ap.add_argument("file", nargs="?", help="solution file (default solutions/<problem>.py)")
     ap.add_argument("--part", type=int, default=1)
@@ -106,7 +107,7 @@ def main():
     if not args.problem:
         for p in PROBLEMS:
             print(f"{p.key:<14} {p.difficulty:<7} {len(p.parts)} parts  {p.title}: {p.summary}")
-        print("\nrun ./implquest.py <problem> to start one")
+        print("\nrun ./butterbricks.py implementation <problem> to start one")
         return
 
     problem = get(args.problem)

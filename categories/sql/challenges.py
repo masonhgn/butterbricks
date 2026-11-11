@@ -1,4 +1,4 @@
-"""lessons and challenges for sqlquest
+"""lessons and challenges for the Butterbricks SQL category
 
 each challenge is checked by running its solution on a fresh copy of the
 database and comparing the result to yours. for challenges that change data,

@@ -1,4 +1,4 @@
-"""builds the sqlquest practice database: a small online store with staff"""
+"""builds the SQL category's practice database: a small online store with staff"""
 
 import random
 import sqlite3

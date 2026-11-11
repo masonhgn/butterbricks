@@ -3,7 +3,7 @@
 # requires-python = ">=3.10"
 # dependencies = ["rich>=13", "prompt_toolkit>=3"]
 # ///
-"""sqlquest: a progressive sql challenge sandbox backed by a real sqlite database"""
+"""the Butterbricks SQL challenges in the terminal, backed by a real sqlite database. Run it as ./butterbricks.py sql"""
 
 import json
 import os
@@ -35,8 +35,8 @@ try:
     from rich.text import Text
 except ImportError:
     sys.exit(
-        "sqlquest needs the rich and prompt_toolkit packages.\n"
-        "Run it with ./sqlquest.py (uv installs them automatically),\n"
+        "the SQL terminal needs the rich and prompt_toolkit packages.\n"
+        "Run it with ./butterbricks.py sql (uv installs them automatically),\n"
         "or: pip install rich prompt_toolkit"
     )
 
@@ -44,9 +44,9 @@ from challenges import CHALLENGES, LEVELS
 from engine import QueryError, Sandbox, compare, error_tip, is_number, run_sql
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(HERE, "sqlquest.db")
-PROGRESS_PATH = os.environ.get("SQLQUEST_PROGRESS", os.path.join(HERE, "progress.json"))
-HISTORY_PATH = os.path.join(HERE, ".sqlquest_history")
+DB_PATH = os.path.join(HERE, "store.db")
+PROGRESS_PATH = os.environ.get("BUTTERBRICKS_SQL_PROGRESS", os.path.join(HERE, "progress.json"))
+HISTORY_PATH = os.path.join(HERE, ".history")
 MAX_ROWS_SHOWN = 15
 CODE_THEME = "monokai"
 

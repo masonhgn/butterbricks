@@ -1,4 +1,4 @@
-"""database sandbox and answer checking for sqlquest, no ui code lives here"""
+"""database sandbox and answer checking for the SQL category, no ui code lives here"""
 
 import itertools
 import os

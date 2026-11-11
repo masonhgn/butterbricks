@@ -1,32 +1,23 @@
-#!/usr/bin/env python3
-"""rebuilds the site's data, then serves web/ with caching turned off, so edits (and other sites that used the same
-port before) never leave stale files in the browser"""
+#!/usr/bin/env -S uv run --quiet --script
+# /// script
+# requires-python = ">=3.10"
+# dependencies = ["flask>=3.1,<4"]
+# ///
+"""runs the site locally: rebuilds each track's data, then starts the Flask app (app.py) in debug mode, so accounts
+and syncing work the same as on butterbricks.org. The local database is instance/butterbricks.db and the invite code
+is "dev" unless INVITE_CODE is set"""
 
-import functools
-import http.server
-import os
 import sys
 
 import build
-
-HERE = os.path.dirname(os.path.abspath(__file__))
-
-
-class NoCache(http.server.SimpleHTTPRequestHandler):
-    def end_headers(self):
-        self.send_header("Cache-Control", "no-store")
-        super().end_headers()
-
-    def log_message(self, *args):
-        pass
 
 
 def main():
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
     build.main()
-    handler = functools.partial(NoCache, directory=os.path.join(HERE, "web"))
-    print(f"serving on http://localhost:{port}", flush=True)
-    http.server.ThreadingHTTPServer(("", port), handler).serve_forever()
+    from app import INVITE_CODE, app
+    print(f"serving on http://localhost:{port} (invite code: {INVITE_CODE or 'sign-up closed'})", flush=True)
+    app.run(host="127.0.0.1", port=port, debug=True, use_reloader=False)
 
 
 if __name__ == "__main__":

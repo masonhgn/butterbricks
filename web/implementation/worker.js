@@ -4,7 +4,7 @@
 
 importScripts("https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js");
 
-const ROOT = "/home/pyodide/implquest";
+const ROOT = "/home/pyodide/butterbricks";
 let web;
 
 async function init({ files }) {

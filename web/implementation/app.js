@@ -79,7 +79,7 @@ function pyStatus(kind, text) {
 
 //progress: which parts of which problems are solved, plus code, notes and timers per problem, all in localStorage
 
-const PROGRESS_KEY = "butterbrick:impl:progress";
+const PROGRESS_KEY = "butterbricks:implementation:progress";
 
 function progress() {
   return storedJson(PROGRESS_KEY, { solved: {}, current: null });
@@ -110,34 +110,20 @@ function markSolved(key, part) {
   return first;
 }
 
-const codeKey = (k) => `butterbrick:impl:code:${k}`;
-const notesKey = (k) => `butterbrick:impl:notes:${k}`;
-const timeKey = (k) => `butterbrick:impl:time:${k}`;
-const partKey = (k) => `butterbrick:impl:part:${k}`;
-const revealKey = (k) => `butterbrick:impl:revealed:${k}`;
-const scratchKey = (k) => `butterbrick:impl:scratch:${k}`;
+const codeKey = (k) => `butterbricks:implementation:code:${k}`;
+const notesKey = (k) => `butterbricks:implementation:notes:${k}`;
+const timeKey = (k) => `butterbricks:implementation:time:${k}`;
+const partKey = (k) => `butterbricks:implementation:part:${k}`;
+const revealKey = (k) => `butterbricks:implementation:revealed:${k}`;
+const scratchKey = (k) => `butterbricks:implementation:scratch:${k}`;
 
 //sidebar
 
 function renderSidebar() {
-  const bar = $("sidebar");
-  bar.innerHTML = "<h2>Problems</h2>";
-  for (const p of S.problems) {
-    const solved = solvedParts(p.key);
-    const b = el("button", "problem-link");
-    if (S.problem && p.key === S.problem.key) b.classList.add("current");
-    if (solved.size === p.parts.length) b.classList.add("complete");
-    b.innerHTML = `<span class="name">${esc(p.title)}</span><span class="sub">${esc(p.difficulty)} · ${plural(p.parts.length, "part")} · ~${p.minutes} min</span>`;
-    const pips = el("span", "pips");
-    p.parts.forEach((_, i) => pips.append(el("span", `pip${solved.has(i + 1) ? " done" : ""}`)));
-    b.append(pips);
-    b.title = p.summary;
-    b.onclick = () => openProblem(p.key);
-    bar.append(b);
-  }
+  showProblemList("implementation", S.problem?.key, openProblem);
   const total = S.problems.reduce((n, p) => n + p.parts.length, 0);
   const done = S.problems.reduce((n, p) => n + solvedParts(p.key).size, 0);
-  $("progress-text").textContent = `${done} / ${total} parts`;
+  $("progress-text").textContent = `${done} / ${total} Implementation parts`;
   $("progress-fill").style.width = `${(100 * done) / total}%`;
 }
 
@@ -148,6 +134,7 @@ function openProblem(key) {
   if (S.problem) saveCode();
   const problem = S.problems.find((p) => p.key === key) || S.problems[0];
   S.problem = problem;
+  setProblemHash(problem.key);
   const p = progress();
   p.current = problem.key;
   saveProgress(p);
@@ -325,6 +312,7 @@ function setBusy(busy) {
 
 async function runTests(mode) {
   if (S.running || !S.problem) return;
+  if (mode === "submit" && !(await requireSignIn("Sign in to submit. Your progress is saved to your account."))) return;
   saveCode();
   setBusy(true);
   clearErrorLine();
@@ -597,13 +585,13 @@ async function main() {
   });
   armed($("btn-reset-progress"), "Click again to erase everything", () => {
     try {
-      for (const k of Object.keys(localStorage)) if (k.startsWith("butterbrick:impl:")) localStorage.removeItem(k);
+      for (const k of Object.keys(localStorage)) if (k.startsWith("butterbricks:implementation:")) storage(k, null);
     } catch (e) {}
     openProblem(S.problems[0].key);
   });
   $("btn-timer").onclick = () => {
     S.timer.paused = !S.timer.paused;
-    storage("butterbrick:impl:timer-paused", S.timer.paused ? "1" : null);
+    storage("butterbricks:implementation:timer-paused", S.timer.paused ? "1" : null);
     renderTimer();
   };
   armed($("btn-timer-reset"), "Reset timer?", () => { storage(timeKey(S.problem.key), "0"); renderTimer(); });
@@ -615,11 +603,15 @@ async function main() {
   });
   window.addEventListener("beforeunload", () => S.problem && saveCode());
 
-  S.timer.paused = storage("butterbrick:impl:timer-paused") === "1";
+  S.timer.paused = storage("butterbricks:implementation:timer-paused") === "1";
   setInterval(tick, 1000);
-  setupSplitters("impl", () => cm.refresh());
-  storage("butterbrick:last-track", "impl");
-  openProblem(progress().current);
+  setupSplitters("implementation", () => cm.refresh());
+  await loadCatalog();
+  // a link like /implementation/#kv-store opens that problem
+  openProblem(S.problems.some((p) => p.key === problemHash()) ? problemHash() : progress().current);
+  window.addEventListener("hashchange", () => {
+    if (S.problems.some((p) => p.key === problemHash()) && problemHash() !== S.problem?.key) openProblem(problemHash());
+  });
 }
 
-unlock().then(main);
+ready.then(main);

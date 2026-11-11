@@ -1,0 +1,31 @@
+app = "butterbricks"
+primary_region = "iad"
+
+[build]
+
+[env]
+  DATABASE_PATH = "/data/butterbricks.db"
+
+# users and their saves, in SQLite on a volume (Fly snapshots it daily)
+[mounts]
+  source = "butterbricks_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # stop the machine when nobody's using the site; the next visit starts it again in a second or two
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    grace_period = "10s"
+    interval = "30s"
+    method = "GET"
+    path = "/api/health"
+    timeout = "5s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

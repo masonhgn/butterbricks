@@ -1,6 +1,6 @@
 "use strict";
 
-// the SQL track. Helpers, storage, the gate and the editor setup are shared, in ../common.js
+// the SQL category's page. Helpers, storage, accounts, the problem list and the editor setup are shared, in ../common.js
 
 const S = {
   levels: [], challenges: [], schema: {}, progress: null,
@@ -37,7 +37,7 @@ function startWorker() {
     if (data.error !== undefined) p.reject(new Error(data.error));
     else p.resolve(data.value);
   };
-  workerReady = call("init", { dbUrl: "sqlquest.db", challenges: S.challenges });
+  workerReady = call("init", { dbUrl: "store.db", challenges: S.challenges });
 }
 
 function call(op, args, timeout) {
@@ -64,8 +64,8 @@ async function engine(op, args, timeout) {
 
 //progress lives in this browser's localStorage, in the same format as the terminal version's progress.json
 
-const PROGRESS_KEY = "butterbrick:sql:progress";
-const draftKey = (key) => `butterbrick:sql:draft:${key}`;
+const PROGRESS_KEY = "butterbricks:sql:progress";
+const draftKey = (key) => `butterbricks:sql:draft:${key}`;
 
 function loadProgress() {
   const data = storedJson(PROGRESS_KEY, {});
@@ -96,6 +96,8 @@ async function runChallenge(index, sql) {
     result: null, after: null, changes: 0, modified: {}, status: "error", message: e.message,
     tip: "Usually a JOIN without an ON clause, which pairs every row with every other row.",
   }));
+  // signed out, a query still runs so you can explore the data, but checking it is a submission: that needs an account
+  if (account.online && !account.user && out.status !== "error") return { ...out, status: "unchecked" };
   if (out.status !== "correct") return out;
   const ch = S.challenges[index];
   const { solved } = loadProgress();
@@ -144,26 +146,11 @@ function saveDraft() { if (cm && S.draftFor) storage(draftKey(S.draftFor), cm.ge
 function renderProgress() {
   const done = S.progress.solved.length, total = S.challenges.length;
   $("progress-fill").style.width = `${(100 * done) / total}%`;
-  $("progress-text").textContent = `${done} / ${total} solved`;
+  $("progress-text").textContent = `${done} / ${total} SQL challenges`;
 }
 
 function renderSidebar() {
-  const solved = new Set(S.progress.solved);
-  let html = "";
-  S.levels.forEach((lvl, li) => {
-    const items = S.challenges.map((c, i) => [c, i]).filter(([c]) => c.level === li);
-    const doneHere = items.filter(([c]) => solved.has(c.key)).length;
-    html += `<div class="level-group"><h2><span>${li + 1}. ${esc(lvl.title)}</span><span>${doneHere}/${items.length}</span></h2>`;
-    for (const [c, i] of items) {
-      const cls = ["challenge-link", solved.has(c.key) ? "solved" : "", i === S.index ? "current" : ""].join(" ");
-      const mark = solved.has(c.key) ? "✓" : "○";
-      html += `<button class="${cls}" data-i="${i}"><span class="mark">${mark}</span><span class="num">${i + 1}</span><span>${esc(c.title)}</span></button>`;
-    }
-    html += "</div>";
-  });
-  $("sidebar").innerHTML = html;
-  const cur = $("sidebar").querySelector(".current");
-  if (cur) cur.scrollIntoView({ block: "nearest" });
+  showProblemList("sql", current().key, (key) => enter(S.challenges.findIndex((c) => c.key === key)));
 }
 
 //the left pane: challenge, lesson, schema, solution
@@ -468,6 +455,7 @@ function enter(index, { lesson } = {}) {
   cm.clearHistory();
   setStatus(null);
   S.progress = saveProgress(loadProgress().solved, index);
+  setProblemHash(ch.key);
   renderTask();
   renderSidebar();
   renderTabs();
@@ -505,6 +493,9 @@ async function run() {
   const changedNote = d.changes ? `<div class="tip">${plural(d.changes, "row")} changed on a throwaway copy · tabs marked • show the changed tables</div>` : "";
   if (d.status === "error") {
     setStatus("error", "✗ Error", `${esc(d.message)}${d.tip ? `<div class="tip">${esc(d.tip)}</div>` : ""}`);
+  } else if (d.status === "unchecked") {
+    setStatus("info", "Ran", `Your query ran; its result is below. <button class="btn primary small" id="sign-in-to-check">Sign in</button> to submit it and save your progress.${changedNote}`);
+    $("sign-in-to-check").onclick = () => requireSignIn("Sign in to submit answers. Your progress is saved to your account.");
   } else if (d.status === "wrong") {
     const left = ch.hints.length - S.hintsShown;
     const tip = left ? `${plural(left, "hint")} left in the Challenge tab, or compare with Expected output` : "Expected output shows the target, the Solution tab reveals an answer";
@@ -571,11 +562,6 @@ function bind() {
     if (file) importProgress(file);
   };
 
-  $("sidebar").onclick = (e) => {
-    const b = e.target.closest("[data-i]");
-    if (b) enter(Number(b.dataset.i));
-  };
-
   $("sheet-tab-list").onclick = (e) => {
     const close = e.target.closest("[data-close]");
     if (close) { e.stopPropagation(); closeTable(close.dataset.close); return; }
@@ -638,7 +624,10 @@ async function init() {
   startWorker();
   const { solved, index } = loadProgress();
   S.progress = progressJson(solved, index);
-  S.index = index;
+  // a link like /sql/#distinct_categories opens that challenge
+  const linked = S.challenges.findIndex((c) => c.key === problemHash());
+  S.index = linked >= 0 ? linked : index;
+  await loadCatalog();
 
   const hintTables = {};
   for (const [t, cols] of Object.entries(S.schema)) hintTables[t] = cols.map((c) => c.name);
@@ -659,13 +648,16 @@ async function init() {
 
   bind();
   setupSplitters("sql", () => cm.refresh());
-  storage("butterbrick:last-track", "sql");
+  window.addEventListener("hashchange", () => {
+    const i = S.challenges.findIndex((c) => c.key === problemHash());
+    if (i >= 0 && i !== S.index) enter(i);
+  });
   renderSchema();
   renderProgress();
   const first = S.challenges.findIndex((c) => c.level === current().level);
   enter(S.index, { lesson: first === S.index && !S.progress.solved.includes(current().key) });
 }
 
-unlock()
+ready
   .then(init)
   .catch((e) => setStatus("error", "✗ Error", `Couldn't load: ${esc(e.message)}`));

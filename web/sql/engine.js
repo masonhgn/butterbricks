@@ -1,4 +1,4 @@
-/* sqlquest engine: a web worker that runs sql with sql.js and checks answers, a port of engine.py.
+/* the SQL category's engine: a web worker that runs sql with sql.js and checks answers, a port of engine.py.
    it lives in a worker so the page can kill it when a query runs too long */
 "use strict";
 

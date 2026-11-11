@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""builds everything the static site in web/ needs: each track's data (sql/build_web.py, impl/build_web.py), then
-web/tracks.json, the counts the home page shows progress against"""
+"""builds everything the site in web/ needs: each category's data (categories/<category>/build_web.py), then
+web/catalog.json, the list of every problem by category that the sidebar and the home page show"""
 
 import json
 import os
@@ -9,24 +9,41 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(HERE, "web")
-TRACKS = ["sql", "impl"]
+CATEGORIES = ["sql", "implementation"]
+
+
+def sql_catalog():
+    with open(os.path.join(WEB, "sql", "data.json")) as f:
+        data = json.load(f)
+    groups = []
+    for li, level in enumerate(data["levels"]):
+        groups.append({
+            "title": level["title"],
+            "problems": [{"key": c["key"], "title": c["title"], "num": i + 1}
+                         for i, c in enumerate(data["challenges"]) if c["level"] == li],
+        })
+    return {"key": "sql", "title": "SQL", "unit": "challenge", "total": len(data["challenges"]),
+            "blurb": "Queries against a real SQLite database of a small online store, checked by their result.",
+            "groups": groups}
+
+
+def implementation_catalog():
+    with open(os.path.join(WEB, "implementation", "problems.json")) as f:
+        data = json.load(f)
+    problems = [{"key": p["key"], "title": p["title"], "parts": len(p["parts"]), "difficulty": p["difficulty"],
+                 "minutes": p["minutes"], "summary": p["summary"]} for p in data["problems"]]
+    return {"key": "implementation", "title": "Implementation", "unit": "part", "total": sum(p["parts"] for p in problems),
+            "blurb": "Build a small system in Python against an extensive test suite, one part at a time.",
+            "groups": [{"title": None, "problems": problems}]}
 
 
 def main():
-    for track in TRACKS:
-        # each script runs from its own directory so its imports (challenges, problems) resolve as they always have
-        subprocess.run([sys.executable, os.path.join(HERE, track, "build_web.py")], check=True)
-    with open(os.path.join(WEB, "sql", "data.json")) as f:
-        sql = json.load(f)
-    with open(os.path.join(WEB, "impl", "problems.json")) as f:
-        impl = json.load(f)
-    tracks = {
-        "sql": {"challenges": len(sql["challenges"]), "levels": len(sql["levels"])},
-        "impl": {"problems": len(impl["problems"]), "parts": sum(len(p["parts"]) for p in impl["problems"])},
-    }
-    with open(os.path.join(WEB, "tracks.json"), "w") as f:
-        json.dump(tracks, f)
-    print("wrote web/tracks.json")
+    for category in CATEGORIES:
+        # each script runs from its own directory, so its imports (challenges, problems) resolve as they always have
+        subprocess.run([sys.executable, os.path.join(HERE, "categories", category, "build_web.py")], check=True)
+    with open(os.path.join(WEB, "catalog.json"), "w") as f:
+        json.dump({"categories": [sql_catalog(), implementation_catalog()]}, f)
+    print("wrote web/catalog.json")
 
 
 if __name__ == "__main__":

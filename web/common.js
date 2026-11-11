@@ -1,44 +1,72 @@
 "use strict";
 
-// shared by every Butterbrick page: helpers, localStorage, the password gate, splitters, editor keys and confetti.
-// Each track's app.js loads after this and uses these as globals
+// shared by every Butterbricks page: helpers, localStorage and syncing it to your account, signing in, splitters,
+// editor keys and confetti. Each track's app.js loads after this and uses these as globals; pages start with
+// ready.then(init), so they read storage only after a signed-in browser has pulled the account's saves
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; };
 
-//storage: every key is butterbrick:<track>:<name>. A null value removes the key
+//storage: every key is butterbricks:<track>:<name>. A null value removes the key. In a browser that's signed in,
+//every change to a synced key is also sent to the account (see accounts, below)
 
-function storage(key, value) {
+const PREFIX = "butterbricks:";
+const SYNC_USER = "butterbricks:sync:user";        // the account this browser's saves belong to
+const SYNC_PENDING = "butterbricks:sync:pending";  // keys changed here that the account doesn't have yet
+// what stays in this browser: pane sizes, the timer's paused state, and the sync bookkeeping itself
+const LOCAL_ONLY = /^butterbricks:(migrated$|sync:|sidebar:|[a-z]+:(left-w|results-h|timer-paused)$)/;
+const isSynced = (key) => key.startsWith(PREFIX) && !LOCAL_ONLY.test(key);
+
+function raw(key, value) {
   try {
     if (value === undefined) return localStorage.getItem(key);
     if (value === null) localStorage.removeItem(key);
     else localStorage.setItem(key, value);
   } catch (e) { return null; }
+  return undefined;
+}
+
+// set while signing out, so nothing (like a page's save-on-leave handler) writes your work back after it's cleared
+let storageFrozen = false;
+
+function storage(key, value) {
+  if (storageFrozen && value !== undefined) return undefined;
+  const out = raw(key, value);
+  if (value !== undefined && isSynced(key) && raw(SYNC_USER)) queueSync(key);
+  return out;
 }
 
 function storedJson(key, fallback) {
   try { return JSON.parse(storage(key)) ?? fallback; } catch (e) { return fallback; }
 }
 
-// before the merge the two sites kept their data under sqlquest: and implquest:. Copy it over once, so code, notes and
-// progress saved on the same address carry into Butterbrick. The old keys stay, in case anything goes wrong
+function syncedKeys() {
+  const keys = [];
+  try { for (let i = 0; i < localStorage.length; i++) if (isSynced(localStorage.key(i))) keys.push(localStorage.key(i)); } catch (e) {}
+  return keys;
+}
+
+// data saved by earlier versions of the site on the same address: SQLQuest (sqlquest:), ImplQuest (implquest:) and
+// Butterbrick (butterbrick:), and this site's own butterbricks:impl: from before the category was renamed. Copy it over
+// once; the old keys stay, in case anything goes wrong
 (function migrateStorage() {
   try {
-    if (localStorage.getItem("butterbrick:migrated")) return;
+    if (localStorage.getItem("butterbricks:migrated") === "2") return;
     const moves = [];
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
       let to = null;
-      if (k === "sqlquest:unlocked") to = "butterbrick:unlocked";
-      else if (k === "sqlquest:editor-h") to = null;  // the SQL editor's height, from a layout that no longer exists
-      else if (k.startsWith("sqlquest:")) to = `butterbrick:sql:${k.slice(9)}`;
-      else if (k.startsWith("implquest:")) to = `butterbrick:impl:${k.slice(10)}`;
+      if (k.startsWith("butterbricks:impl:")) to = `butterbricks:implementation:${k.slice(18)}`;
+      else if (k.startsWith("butterbrick:impl:")) to = `butterbricks:implementation:${k.slice(17)}`;
+      else if (k.startsWith("butterbrick:") && !/^butterbrick:(migrated|unlocked|last-track)$/.test(k)) to = `butterbricks:${k.slice(12)}`;
+      else if (k.startsWith("sqlquest:") && !/^sqlquest:(unlocked|editor-h)$/.test(k)) to = `butterbricks:sql:${k.slice(9)}`;
+      else if (k.startsWith("implquest:")) to = `butterbricks:implementation:${k.slice(10)}`;
       if (to && localStorage.getItem(to) === null) moves.push([to, localStorage.getItem(k)]);
     }
-    for (const [k, v] of moves) localStorage.setItem(k, v);
-    localStorage.setItem("butterbrick:migrated", "1");
+    for (const [k, v] of moves) if (localStorage.getItem(k) === null) localStorage.setItem(k, v);
+    localStorage.setItem("butterbricks:migrated", "2");
   } catch (e) { /* storage blocked: nothing to carry over */ }
 })();
 
@@ -129,7 +157,7 @@ function splitter(handle, onMove, onDone) {
 
 function setupSplitters(track, onResize) {
   const root = document.documentElement.style;
-  const leftKey = `butterbrick:${track}:left-w`, bottomKey = `butterbrick:${track}:results-h`;
+  const leftKey = `${PREFIX}${track}:left-w`, bottomKey = `${PREFIX}${track}:results-h`;
   if (storage(leftKey)) root.setProperty("--left-w", storage(leftKey));
   if (storage(bottomKey)) root.setProperty("--results-h", storage(bottomKey));
   splitter($("vsplit"), (e) => {
@@ -158,6 +186,7 @@ function celebrate(big, ...nodes) {
   if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) confetti(big ? 260 : 120);
 }
 
+// square, unrotated bits, so the confetti looks as pixelated as the rest of the site
 function confetti(count) {
   const canvas = document.createElement("canvas");
   canvas.id = "confetti";
@@ -167,7 +196,7 @@ function confetti(count) {
   canvas.height = innerHeight * dpr;
   const ctx = canvas.getContext("2d");
   ctx.scale(dpr, dpr);
-  const colors = ["#f6cd57", "#ffe9a3", "#eebc3f", "#1e7f45", "#7fd49a", "#e8573f", "#3b82f6"];
+  const colors = ["#f6cd57", "#ffe9a3", "#e3ad32", "#a8741a", "#6abf69", "#e8573f", "#5b9bd5"];
   // two bursts from the bottom corners, aimed up and inward
   const bits = Array.from({ length: count }, (_, i) => {
     const left = i % 2 === 0;
@@ -176,8 +205,7 @@ function confetti(count) {
     return {
       x: left ? 0 : innerWidth, y: innerHeight * 0.9,
       vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
-      w: 6 + Math.random() * 6, h: 8 + Math.random() * 8,
-      rot: Math.random() * Math.PI, vr: (Math.random() - 0.5) * 0.3,
+      size: 4 * (1 + Math.floor(Math.random() * 3)), blink: Math.random() * 10,
       color: colors[Math.floor(Math.random() * colors.length)],
     };
   });
@@ -191,13 +219,10 @@ function confetti(count) {
       b.vx *= 0.99;
       b.x += b.vx;
       b.y += b.vy;
-      b.rot += b.vr;
-      ctx.save();
-      ctx.translate(b.x, b.y);
-      ctx.rotate(b.rot);
+      // snap to a 4px grid; every so often a bit "flips" to its thin side, like a sprite turning
+      const thin = Math.floor((t / 90 + b.blink) % 4) === 0;
       ctx.fillStyle = b.color;
-      ctx.fillRect(-b.w / 2, -b.h / 2, b.w, b.h * Math.cos(b.rot * 2));
-      ctx.restore();
+      ctx.fillRect(Math.round(b.x / 4) * 4, Math.round(b.y / 4) * 4, thin ? 4 : b.size, b.size);
     }
     if (t < 3000) requestAnimationFrame(frame);
     else canvas.remove();
@@ -205,40 +230,318 @@ function confetti(count) {
   requestAnimationFrame(frame);
 }
 
-//password gate. It only keeps casual visitors out: the site's files are public, so it is not real security
+//the problem list: every category's problems in one sidebar, from catalog.json (built by build.py). A category's page
+//calls showProblemList with its own category and the open problem; picking a problem in another category opens that
+//category's page at /<category>/#<problem>
 
-const PASSWORD_SHA256 = "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4";
-const UNLOCK_KEY = "butterbrick:unlocked";
+let catalog = null;
 
-async function sha256(text) {
-  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
-  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+async function loadCatalog() {
+  if (!catalog) catalog = await (await fetch("/catalog.json")).json();
+  return catalog;
 }
 
-function unlock() {
-  if (storage(UNLOCK_KEY) === PASSWORD_SHA256) return Promise.resolve();
-  const logo = document.querySelector('link[rel="icon"]')?.href || "";
-  const gate = el("div", "gate", `<form class="gate-box">
-    <div class="brand"><img class="logo" src="${esc(logo)}" alt=""> Butterbrick</div>
-    <label for="gate-password">Password</label>
-    <input type="password" id="gate-password" autocomplete="current-password" required>
-    <div class="gate-error" hidden>Wrong password.</div>
-    <button class="btn primary" type="submit">Enter</button>
-  </form>`);
-  document.body.append(gate);
-  const input = gate.querySelector("input");
-  input.focus();
-  return new Promise((resolve) => {
-    gate.querySelector("form").onsubmit = async (e) => {
-      e.preventDefault();
-      if (await sha256(input.value) === PASSWORD_SHA256) {
-        storage(UNLOCK_KEY, PASSWORD_SHA256);
-        gate.remove();
-        resolve();
-      } else {
-        gate.querySelector(".gate-error").hidden = false;
-        input.select();
-      }
+// how much of each problem is done: 1 or 0 for a SQL challenge, the number of solved parts for an implementation one
+const DONE = {
+  sql: () => { const solved = new Set(storedJson("butterbricks:sql:progress", {}).solved || []); return (key) => (solved.has(key) ? 1 : 0); },
+  implementation: () => { const solved = storedJson("butterbricks:implementation:progress", {}).solved || {}; return (key) => (solved[key] || []).length; },
+};
+
+function categoryDone(cat) {
+  const done = DONE[cat.key]();
+  return cat.groups.reduce((n, g) => n + g.problems.reduce((m, p) => m + done(p.key), 0), 0);
+}
+
+const problemHash = () => decodeURIComponent(location.hash.slice(1));
+
+function setProblemHash(key) {
+  if (problemHash() !== key) history.replaceState(null, "", `#${encodeURIComponent(key)}`);
+  storage("butterbricks:last", `${location.pathname.split("/")[1]}/#${encodeURIComponent(key)}`);
+}
+
+function showProblemList(category, currentKey, onPick) {
+  const bar = $("sidebar");
+  if (!catalog || !bar) return;
+  const openKey = "butterbricks:sidebar:open";
+  const open = new Set(storedJson(openKey, [category]));
+  open.add(category);
+  bar.innerHTML = "";
+  for (const cat of catalog.categories) {
+    const done = DONE[cat.key]();
+    const isOpen = open.has(cat.key);
+    const head = el("button", `cat-head${cat.key === category ? " here" : ""}`,
+      `<span class="caret">${isOpen ? "▾" : "▸"}</span><span class="cat-title">${esc(cat.title)}</span>` +
+      `<span class="cat-count">${categoryDone(cat)}/${cat.total}</span>`);
+    head.title = cat.blurb;
+    head.onclick = () => {
+      if (isOpen && cat.key !== category) open.delete(cat.key); else open.add(cat.key);
+      storage(openKey, JSON.stringify([...open]));
+      showProblemList(category, currentKey, onPick);
     };
-  });
+    bar.append(head);
+    if (!isOpen) continue;
+    for (const group of cat.groups) {
+      if (group.title) {
+        const n = group.problems.filter((p) => done(p.key)).length;
+        bar.append(el("h3", "group-head", `<span>${esc(group.title)}</span><span>${n}/${group.problems.length}</span>`));
+      }
+      for (const p of group.problems) {
+        const here = cat.key === category && p.key === currentKey;
+        let item;
+        if (p.parts) {
+          item = el("button", `problem-link${here ? " current" : ""}${done(p.key) === p.parts ? " complete" : ""}`,
+            `<span class="name">${esc(p.title)}</span><span class="sub">${esc(p.difficulty)} · ${plural(p.parts, "part")} · ~${p.minutes} min</span>`);
+          const pips = el("span", "pips");
+          for (let i = 0; i < p.parts; i++) pips.append(el("span", `pip${i < done(p.key) ? " done" : ""}`));
+          item.append(pips);
+          item.title = p.summary;
+        } else {
+          const solved = done(p.key) > 0;
+          item = el("button", `challenge-link${solved ? " solved" : ""}${here ? " current" : ""}`,
+            `<span class="mark">${solved ? "✓" : "○"}</span><span class="num">${p.num}</span><span>${esc(p.title)}</span>`);
+        }
+        item.onclick = () => {
+          if (cat.key === category) onPick(p.key);
+          else location.href = `/${cat.key}/#${encodeURIComponent(p.key)}`;
+        };
+        bar.append(item);
+      }
+    }
+  }
+  bar.querySelector(".current")?.scrollIntoView({ block: "nearest" });
 }
+
+//accounts. Signing in is optional for practicing and required for submitting. A signed-in browser pulls the account's
+//saves when a page loads and sends its own changes a moment after they happen; keys it couldn't send yet wait in
+//SYNC_PENDING (in localStorage, so a closed tab doesn't lose them) and go first next time
+
+const account = { online: false, user: null, signup: false };
+let syncPending = new Set();
+let flushTimer = null;
+
+async function api(method, url, body, { keepalive = false } = {}) {
+  const res = await fetch(url, {
+    method, keepalive, credentials: "same-origin",
+    headers: body ? { "Content-Type": "application/json" } : {},
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  let data = {};
+  try { data = await res.json(); } catch (e) {}
+  if (!res.ok) {
+    const err = new Error(data.error || `The server answered ${res.status}.`);
+    err.status = res.status;
+    throw err;
+  }
+  return data;
+}
+
+function savePending() { raw(SYNC_PENDING, syncPending.size ? JSON.stringify([...syncPending]) : null); }
+
+function queueSync(key) {
+  syncPending.add(key);
+  savePending();
+  if (!flushTimer) flushTimer = setTimeout(flush, 2000);
+}
+
+async function flush({ keepalive = false } = {}) {
+  clearTimeout(flushTimer);
+  flushTimer = null;
+  if (!syncPending.size || !account.user) return true;
+  const keys = [...syncPending];
+  const changes = {};
+  for (const k of keys) changes[k] = raw(k);
+  syncPending.clear();
+  savePending();
+  syncState("saving");
+  try {
+    await api("PUT", "/api/saves", { changes }, { keepalive });
+    syncState(syncPending.size ? "saving" : "saved");
+    return true;
+  } catch (e) {
+    for (const k of keys) syncPending.add(k);
+    savePending();
+    if (e.status === 401) { account.user = null; renderAccount(); return false; }
+    syncState("offline");
+    if (!keepalive) flushTimer = setTimeout(flush, 15000);
+    return false;
+  }
+}
+
+// two versions of the same key, from this browser and from the account: progress is the union of both, timers keep
+// the larger total, and anything else (code, notes, drafts) takes the account's copy
+function combine(key, mine, theirs) {
+  try {
+    if (/:progress$/.test(key)) {
+      const a = JSON.parse(mine), b = JSON.parse(theirs);
+      if (Array.isArray(b.solved)) b.solved = [...new Set([...(b.solved || []), ...(a.solved || [])])].sort();
+      else for (const [k, parts] of Object.entries(a.solved || {})) {
+        b.solved[k] = [...new Set([...(b.solved[k] || []), ...parts])].sort((x, y) => x - y);
+      }
+      return JSON.stringify(b);
+    }
+    if (/:time:/.test(key)) return String(Math.max(parseFloat(mine) || 0, parseFloat(theirs) || 0));
+  } catch (e) {}
+  return theirs;
+}
+
+function wipeLocal() {
+  for (const k of syncedKeys()) raw(k, null);
+  syncPending.clear();
+  raw(SYNC_PENDING, null);
+  raw(SYNC_USER, null);
+}
+
+// the first time this browser syncs with an account: what's saved here goes up, combined with what the account has
+async function adopt(user) {
+  const owner = raw(SYNC_USER);
+  if (owner && owner !== user.username) wipeLocal();  // another account's saves: they're on the server already
+  const { saves } = await api("GET", "/api/saves");
+  const changes = {};
+  for (const k of syncedKeys()) {
+    const mine = raw(k);
+    if (!(k in saves)) { changes[k] = mine; continue; }
+    const both = combine(k, mine, saves[k]);
+    if (both !== saves[k]) changes[k] = both;
+    saves[k] = both;
+  }
+  for (const [k, v] of Object.entries(saves)) raw(k, v);
+  if (Object.keys(changes).length) await api("PUT", "/api/saves", { changes });
+  raw(SYNC_USER, user.username);
+  syncPending.clear();
+  savePending();
+}
+
+// every later page load: send what's pending, then take the account's copy of everything else
+async function pull() {
+  await flush();
+  const { saves } = await api("GET", "/api/saves");
+  for (const k of syncedKeys()) if (!(k in saves) && !syncPending.has(k)) raw(k, null);
+  for (const [k, v] of Object.entries(saves)) if (!syncPending.has(k)) raw(k, v);
+}
+
+async function startAccount() {
+  syncPending = new Set(storedJson(SYNC_PENDING, []));
+  try {
+    const me = await api("GET", "/api/me");
+    Object.assign(account, { online: true, user: me.user, signup: me.signup });
+  } catch (e) {
+    account.online = false;  // no server (a plain static copy of web/): everything stays in this browser
+  }
+  if (account.user) {
+    try {
+      if (raw(SYNC_USER) === account.user.username) await pull();
+      else await adopt(account.user);
+    } catch (e) { syncState("offline"); }
+  }
+  renderAccount();
+  addEventListener("pagehide", () => flush({ keepalive: true }));
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flush({ keepalive: true }); });
+}
+
+function syncState(state) {
+  const node = $("sync-state");
+  if (!node) return;
+  node.textContent = { saving: "saving…", saved: "saved", offline: "not saved yet" }[state] || "";
+  node.className = `sync-state ${state}`;
+  node.title = state === "offline" ? "Couldn't reach the server. Your changes are kept here and sent when it's back." : "Saved to your account";
+}
+
+function renderAccount() {
+  let box = $("account");
+  if (!box) {
+    box = el("div", "account");
+    box.id = "account";
+    document.querySelector(".titlebar")?.append(box);
+  }
+  box.innerHTML = "";
+  if (!account.online) return;
+  if (account.user) {
+    box.append(el("span", "who", `<span class="who-icon">●</span> ${esc(account.user.username)}`), el("span", "sync-state", ""));
+    box.lastChild.id = "sync-state";
+    const out = el("button", "btn ghost small", "Sign out");
+    out.onclick = signOut;
+    box.append(out);
+    syncState(syncPending.size ? "saving" : "saved");
+  } else {
+    const inBtn = el("button", "btn primary small", "Sign in");
+    inBtn.onclick = () => openAccountBox();
+    box.append(inBtn);
+  }
+}
+
+async function signOut() {
+  await flush();
+  try { await api("POST", "/api/logout", {}); } catch (e) {}
+  storageFrozen = true;
+  wipeLocal();  // so the next person on this browser doesn't see your work
+  location.reload();
+}
+
+// resolves true if signed in (or there's no server to sign in to); otherwise opens the sign-in box and resolves false
+async function requireSignIn(reason) {
+  if (account.user || !account.online) return true;
+  openAccountBox(reason);
+  return false;
+}
+
+function openAccountBox(reason = "") {
+  if ($("account-box")) return;
+  let mode = "signin";
+  const backdrop = el("div", "modal-backdrop");
+  backdrop.id = "account-box";
+  backdrop.innerHTML = `<form class="modal panel" novalidate>
+    <div class="modal-head"><img class="logo" src="${esc(document.querySelector('link[rel="icon"]')?.href || "")}" alt=""><span>Butterbricks</span></div>
+    <div class="modal-tabs">
+      <button type="button" class="on" data-mode="signin">Sign in</button>
+      <button type="button" data-mode="signup">Create account</button>
+    </div>
+    ${reason ? `<p class="modal-reason">${esc(reason)}</p>` : ""}
+    <label>Username <input name="username" autocomplete="username" required></label>
+    <label>Password <input name="password" type="password" autocomplete="current-password" required></label>
+    <label class="invite" hidden>Invite code <input name="invite" autocomplete="off"></label>
+    <div class="modal-error" hidden></div>
+    <div class="modal-actions">
+      <button type="button" class="btn ghost" data-close>Cancel</button>
+      <button type="submit" class="btn primary">Sign in</button>
+    </div>
+    <p class="muted small modal-note">Progress you've saved in this browser joins your account when you sign in.</p>
+  </form>`;
+  document.body.append(backdrop);
+  const form = backdrop.querySelector("form");
+  const errorBox = form.querySelector(".modal-error");
+  const close = () => backdrop.remove();
+  const setMode = (m) => {
+    mode = m;
+    for (const b of form.querySelectorAll("[data-mode]")) b.classList.toggle("on", b.dataset.mode === m);
+    form.querySelector(".invite").hidden = m !== "signup";
+    form.password.autocomplete = m === "signup" ? "new-password" : "current-password";
+    form.querySelector('[type="submit"]').textContent = m === "signup" ? "Create account" : "Sign in";
+    errorBox.hidden = true;
+  };
+  for (const b of form.querySelectorAll("[data-mode]")) b.onclick = () => setMode(b.dataset.mode);
+  if (!account.signup) form.querySelector('[data-mode="signup"]').hidden = true;
+  form.querySelector("[data-close]").onclick = close;
+  backdrop.addEventListener("mousedown", (e) => { if (e.target === backdrop) close(); });
+  backdrop.addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const submit = form.querySelector('[type="submit"]');
+    submit.disabled = true;
+    errorBox.hidden = true;
+    try {
+      const body = { username: form.username.value.trim(), password: form.password.value };
+      if (mode === "signup") body.invite = form.invite.value.trim();
+      const { user } = await api("POST", mode === "signup" ? "/api/signup" : "/api/login", body);
+      account.user = user;
+      await adopt(user);
+      location.reload();
+    } catch (err) {
+      errorBox.textContent = err.message;
+      errorBox.hidden = false;
+      submit.disabled = false;
+    }
+  };
+  form.username.focus();
+}
+
+const ready = startAccount();

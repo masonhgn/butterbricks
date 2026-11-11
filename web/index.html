@@ -3,96 +3,87 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Butterbrick</title>
+<title>Butterbricks</title>
 <link rel="icon" href="logo.svg" type="image/svg+xml">
-<link rel="stylesheet" href="common.css?v=bb-1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400..700&display=swap">
+<link rel="stylesheet" href="common.css?v=bbs-1">
 <style>
   body { display: block; overflow: auto; }
   .titlebar { height: 50px; }
   .home { max-width: 1000px; margin: 0 auto; padding: 48px 20px 64px; }
   .hero { display: flex; align-items: center; gap: 26px; margin-bottom: 38px; }
-  .hero-logo { width: 116px; height: 116px; flex: none; filter: drop-shadow(0 6px 10px rgba(138, 90, 18, .18)); }
-  .hero h1 { margin: 0; font-size: 46px; letter-spacing: -.02em; line-height: 1.05; }
+  .hero-logo { width: 128px; height: 128px; flex: none; filter: drop-shadow(4px 4px 0 rgba(122, 78, 18, .25)); }
+  .hero h1 { margin: 0; font-size: 56px; font-weight: 700; line-height: 1; color: var(--text); text-shadow: 3px 3px 0 var(--gold-light); }
   .hero p { margin: 10px 0 0; font-size: 18px; color: var(--muted); max-width: 640px; }
   .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px; }
-  .card {
-    display: flex; flex-direction: column; gap: 12px;
-    padding: 22px 24px; background: var(--bg); border: 1px solid var(--line-strong); border-top: 5px solid var(--butter);
-    color: var(--text); text-decoration: none; border-radius: 4px;
-  }
-  .card:hover { border-color: var(--butter-deep); box-shadow: 0 4px 14px rgba(0, 0, 0, .08); }
-  .card:hover .btn.primary { background: #000; }
+  .card { display: flex; flex-direction: column; gap: 12px; padding: 22px 24px; color: var(--text); text-decoration: none; }
+  .card:hover { transform: translate(-2px, -2px); box-shadow: inset 3px 3px 0 #fff, inset -3px -3px 0 #ecd9a6, 6px 6px 0 rgba(122, 78, 18, .3); }
   .card h2 { margin: 0; font-size: 26px; display: flex; align-items: center; gap: 10px; }
   .card p { margin: 0; color: var(--muted); flex: 1; }
   .card .stats { font-size: 14px; font-weight: 600; }
   .card .progress-track { flex: 1; }
   .card .btn { align-self: flex-start; }
-  .last { font-size: 12px; font-weight: 600; color: var(--butter-deep); background: var(--butter-soft); border: 1px solid #e6cb8e; border-radius: 10px; padding: 0 8px; }
+  .continue { margin: -14px 0 22px; }
   @media (max-width: 600px) {
     .hero { flex-direction: column; align-items: flex-start; }
     .hero h1 { font-size: 36px; }
-    .tracks { display: none; }
   }
 </style>
 </head>
 <body>
 
 <header class="titlebar">
-  <a class="brand" href="./"><img class="logo" src="logo.svg" alt=""> Butterbrick</a>
-  <nav class="tracks"><a href="sql/">SQL</a><a href="impl/">Implementation</a></nav>
+  <a class="brand" href="./"><img class="logo" src="logo.svg" alt=""> Butterbricks</a>
 </header>
 
 <main class="home">
   <section class="hero">
     <img class="hero-logo" src="logo.svg" alt="">
     <div>
-      <h1>Butterbrick</h1>
-      <p>Interview practice, laid one brick at a time: SQL checked against a real database, and multi-part implementation problems with full test suites. Everything runs in your browser.</p>
+      <h1>Butterbricks</h1>
+      <p>Interview practice, laid one brick at a time. Problems in several categories, from SQL checked against a real database to multi-part implementation problems with full test suites. Everything runs in your browser.</p>
     </div>
   </section>
 
-  <div class="cards">
-    <a class="card" href="sql/" data-track="sql">
-      <h2>SQL</h2>
-      <p class="stats" id="sql-stats"></p>
-      <p>From <code>SELECT *</code> to window functions, joins and data changes. Each level opens with a short lesson, your query runs on a real SQLite database of a small online store, and any query whose result matches passes.</p>
-      <div class="progress"><div class="progress-track"><div class="progress-fill" id="sql-fill"></div></div><span id="sql-progress"></span></div>
-      <span class="btn primary">Open SQL ›</span>
-    </a>
-    <a class="card" href="impl/" data-track="impl">
-      <h2>Implementation</h2>
-      <p class="stats" id="impl-stats"></p>
-      <p>The small-implementation round: a realistic scenario, a Python class to build, and an extensive test suite. Parts add requirements as you go, like an interviewer would, and each problem ends with design questions to defend.</p>
-      <div class="progress"><div class="progress-track"><div class="progress-fill" id="impl-fill"></div></div><span id="impl-progress"></span></div>
-      <span class="btn primary">Open Implementation ›</span>
-    </a>
-  </div>
+  <div class="continue" id="continue" hidden></div>
+  <div class="cards" id="cards"></div>
 </main>
 
-<script src="common.js?v=bb-1"></script>
+<script src="common.js?v=bbs-1"></script>
 <script>
 "use strict";
 
-function showProgress(track, done, total, unit) {
-  $(`${track}-fill`).style.width = total ? `${(100 * done) / total}%` : "0";
-  $(`${track}-progress`).textContent = `${done} / ${total} ${unit}`;
-}
+// what each category's card says beyond the catalog's numbers
+const ABOUT = {
+  sql: "From <code>SELECT *</code> to window functions, joins and data changes. Each level opens with a short lesson, your query runs on a real SQLite database of a small online store, and any query whose result matches passes.",
+  implementation: "The small-implementation round: a realistic scenario, a Python class to build, and an extensive test suite. Parts add requirements as you go, like an interviewer would, and each problem ends with design questions to defend.",
+};
 
 async function home() {
-  const tracks = await (await fetch("tracks.json")).json();
-  $("sql-stats").textContent = `${tracks.sql.challenges} challenges in ${tracks.sql.levels} levels`;
-  $("impl-stats").textContent = `${plural(tracks.impl.problems, "problem")} · ${tracks.impl.parts} parts`;
-  const sql = storedJson("butterbrick:sql:progress", {});
-  showProgress("sql", Math.min((sql.solved || []).length, tracks.sql.challenges), tracks.sql.challenges, "solved");
-  const impl = storedJson("butterbrick:impl:progress", {});
-  const parts = Object.values(impl.solved || {}).reduce((n, list) => n + list.length, 0);
-  showProgress("impl", Math.min(parts, tracks.impl.parts), tracks.impl.parts, "parts");
-  const last = storage("butterbrick:last-track");
-  const card = last && document.querySelector(`.card[data-track="${last}"] h2`);
-  if (card) card.append(el("span", "last", "last opened"));
+  await loadCatalog();
+  for (const cat of catalog.categories) {
+    const problems = cat.groups.reduce((n, g) => n + g.problems.length, 0);
+    const stats = cat.unit === "part" ? `${plural(problems, "problem")} · ${cat.total} parts` : `${plural(problems, cat.unit)} in ${cat.groups.length} levels`;
+    const done = Math.min(categoryDone(cat), cat.total);
+    const card = el("a", "card panel", `<h2>${esc(cat.title)}</h2><p class="stats">${esc(stats)}</p><p>${ABOUT[cat.key] || esc(cat.blurb)}</p>
+      <div class="progress"><div class="progress-track"><div class="progress-fill" style="width:${(100 * done) / cat.total}%"></div></div><span>${done} / ${cat.total} ${cat.unit}s</span></div>
+      <span class="btn primary">Open ${esc(cat.title)} ›</span>`);
+    card.href = `${cat.key}/`;
+    $("cards").append(card);
+  }
+  const last = storage("butterbricks:last");
+  if (last) {
+    const box = $("continue");
+    const link = el("a", "btn primary", "Continue where you left off ›");
+    link.href = last;
+    box.append(link);
+    box.hidden = false;
+  }
 }
 
-unlock().then(home);
+ready.then(home);
 </script>
 </body>
 </html>
