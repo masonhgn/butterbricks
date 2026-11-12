@@ -1,11 +1,12 @@
 "use strict";
 
 // the engine for brick-based categories (Patterns, Structures). Each page sets window.CATEGORY first (see
-// patterns/index.html) and loads this. Three views, chosen by the URL: the wall (/<category>/), one problem
-// (/<category>/#<problem>) and a recognition drill session (/<category>/#drill). docs/patterns-taxonomy.md and
-// docs/structures-taxonomy.md describe the model: patterns (families) hold variants (techniques, the "bricks"),
-// variants hold problems with a role each, and drills. Structures' problems add an operations table, a design card,
-// and worked designs (questions before the code trace); they show wherever a problem has them.
+// patterns/index.html) and loads this, after visual.js. Three views, chosen by the URL: the wall (/<category>/), a
+// pattern's overview and map (/<category>/#pattern/<key>) and one problem (/<category>/#<problem>).
+// docs/patterns-taxonomy.md and docs/structures-taxonomy.md describe the model: patterns (families) hold variants
+// (techniques, the "bricks"), variants hold problems with a role each and, in Patterns, a lesson for the Learn tab.
+// Structures' problems add an operations table, a design card, and worked designs (reasoning before the code trace);
+// they show wherever a problem has them. Worked examples play in the visualizer (visual.js).
 
 const C = window.CATEGORY;
 
@@ -14,12 +15,10 @@ const S = {
   index: new Map(),     // problem key -> { problem, variant, pattern }
   current: null,        // the open problem's key
   running: false,
-  step: 0,              // the worked example's current step
-  answered: new Set(),  // the example steps whose prediction has been answered
-  drill: null,          // the drill session in progress
+  player: null,         // the worked example's visualizer, in the right-hand pane
 };
 
-let cm, stepCm, py, errors;
+let cm, py, errors;
 
 //helpers
 
@@ -49,7 +48,8 @@ function shuffled(items) {
 //  revealed: problem -> t
 //  laid:     variant -> t                 (a brick is laid when its variation or stretch is solved unassisted)
 //  reviews:  variant -> { stage, due }    (due is a time, or null once every review is done)
-//  drills:   drill -> { ok, t }
+//  drills:   drill -> { ok, t }            (from the retired recognition drills)
+//  learned:  variant -> t                 (its Learn page was opened, so its example opens on Problem from now on)
 
 const PROGRESS_KEY = `butterbricks:${C.key}:progress`;
 const codeKey = (k) => `butterbricks:${C.key}:code:${k}`;
@@ -61,7 +61,7 @@ const LAYS_BRICK = ["variation", "stretch"];
 
 function progress() {
   const p = storedJson(PROGRESS_KEY, {});
-  for (const k of ["solved", "revealed", "laid", "reviews", "drills"]) p[k] ||= {};
+  for (const k of ["solved", "revealed", "laid", "reviews", "drills", "learned"]) p[k] ||= {};
   return p;
 }
 
@@ -136,14 +136,14 @@ function renderProgressBar() {
 
 function showView(name) {
   $("wall-view").hidden = name !== "wall";
-  $("drill-view").hidden = name !== "drill";
+  $("overview-view").hidden = name !== "overview";
   $("problem-view").hidden = name !== "problem";
   document.body.classList.toggle("scroll-page", name !== "problem");
 }
 
 function route() {
   const h = problemHash();
-  if (h === "drill") return startDrill();
+  if (h.startsWith("pattern/") && S.data.patterns.some((p) => p.key === h.slice(8) && p.overview)) return showOverview(h.slice(8));
   if (S.index.has(h)) return openProblem(h);
   showWall();
 }
@@ -180,10 +180,6 @@ function showWall() {
     a.href = `#${encodeURIComponent(next.key)}`;
     actions.append(a);
   }
-  const drill = el("a", "btn", "Recognition drill ›");
-  drill.href = "#drill";
-  drill.title = `${C.drillQuestion} Then: what gave it away?`;
-  actions.append(drill);
   intro.append(actions);
   page.append(intro);
 
@@ -212,10 +208,12 @@ function showWall() {
   const rows = [];
   S.data.patterns.forEach((pattern) => {
     const row = el("div", "wall-row");
-    row.append(el("div", "row-label", esc(pattern.name)));
+    row.append(el("div", "row-label", pattern.overview
+      ? `<a href="#pattern/${encodeURIComponent(pattern.key)}" title="the map of ${esc(pattern.name)}: what each brick is for">${esc(pattern.name)} <span class="small">map ›</span></a>`
+      : esc(pattern.name)));
     const bricks = el("div", "bricks");
     for (const v of pattern.variants) bricks.append(brickButton(pattern, v, p));
-    for (const name of pattern.planned || []) bricks.append(el("span", "brick ghost planned-brick", `<span class="brick-name">${esc(name)}</span><span class="brick-sub">planned</span>`));
+    for (const x of pattern.planned || []) bricks.append(el("span", "brick ghost planned-brick", `<span class="brick-name">${esc(x.name)}</span><span class="brick-sub">planned</span>`));
     row.append(bricks);
     rows.push(row);
   });
@@ -256,7 +254,7 @@ function renderSidebar() {
   head.querySelector(".wall-link").onclick = (e) => { e.preventDefault(); history.pushState(null, "", location.pathname); showWall(); };
   bar.append(head);
   for (const pattern of S.data.patterns) {
-    bar.append(el("h3", "group-head", `<span>${esc(pattern.name)}</span>`));
+    bar.append(el("h3", "group-head", pattern.overview ? `<a href="#pattern/${encodeURIComponent(pattern.key)}">${esc(pattern.name)}</a>` : `<span>${esc(pattern.name)}</span>`));
     for (const v of pattern.variants) {
       const st = variantState(v, p);
       const item = el("a", `variant-link${v.key === here.key ? " current" : ""}${st.laid ? " laid" : ""}`,
@@ -275,35 +273,47 @@ function renderSidebar() {
       }
     }
   }
-  const drill = el("a", "drill-link", "Recognition drill ›");
-  drill.href = "#drill";
-  bar.append(drill);
   bar.querySelector(".problem-step.current")?.scrollIntoView({ block: "nearest" });
 }
 
 function showTab(name) {
+  if (name !== "learn" && !$("tab-learn").hidden) markLearned();
   for (const t of $("left-tabs").querySelectorAll(".tab")) {
     t.classList.toggle("on", t.dataset.tab === name);
     $(`tab-${t.dataset.tab}`).hidden = t.dataset.tab !== name;
   }
+  $(`tab-${name}`).scrollTop = 0;
+}
+
+// a lesson counts as read once you leave it, so its example opens on Problem from then on
+function markLearned() {
+  if (!S.current) return;
+  const { variant } = S.index.get(S.current);
+  const p = progress();
+  if (variant.lesson && !p.learned[variant.key]) { p.learned[variant.key] = Date.now(); saveProgress(p); }
 }
 
 function openProblem(key) {
   if (S.running) return;
   if (S.current && S.current !== key && S.index.get(S.current).problem.role !== "example") saveCode();
+  if (S.current && S.current !== key && !$("tab-learn").hidden) markLearned();
+  const reopened = S.current === key && !$("problem-view").hidden;  // opened again (a sync, say): keep the tab you're on
+  const onTab = [...$("left-tabs").querySelectorAll(".tab")].find((t) => t.classList.contains("on"))?.dataset.tab;
   S.current = key;
   showView("problem");
   setProblemHash(key);
   const p = progress();
   p.current = key;
   saveProgress(p);
-  const { problem } = S.index.get(key);
+  const { problem, variant } = S.index.get(key);
   renderProgressBar();
   renderSidebar();
   renderStatement();
   renderLearn();
   renderSolution();
-  showTab("problem");
+  // a subpattern starts with its lesson: the first time its worked example opens, it opens on Learn
+  const firstVisit = problem.role === "example" && variant.lesson && !p.learned[variant.key];
+  showTab(reopened ? onTab : firstVisit ? "learn" : "problem");
   const example = problem.role === "example";
   $("solve-pane").hidden = example;
   $("step-pane").hidden = !example;
@@ -327,7 +337,7 @@ function sequenceDots(variant, problem, p) {
 }
 
 const ROLE_HELP = C.roleHelp || {
-  example: "Step through the solution on the right. At some steps you'll predict what happens before it's shown.",
+  example: "Step through the solution on the right and watch every variable and structure change as it runs. Change the input to watch it run on yours.",
   completion: "The code on the right is nearly done: fill in the blanks marked ___.",
   twin: "The same structure as before, in a different story. Write it from scratch.",
   variation: "One thing changes from the problem before. Solving this without revealing the solution lays the brick.",
@@ -441,14 +451,15 @@ function designCard(problem) {
   return box;
 }
 
-//a worked design: the design built up one question at a time; the code stepper unlocks once every question is answered
+//a worked design: the design built up one step at a time. Each question is for thinking through; its reasoning shows
+//when you ask for it, and the next step after that. The code stepper unlocks once every step is shown
 
 function walkthrough(problem) {
   S.walk ||= {};
-  const answers = (S.walk[problem.key] ||= []);
+  const shown = (S.walk[problem.key] ||= []);
   const box = el("section", "walkthrough");
   box.append(el("h3", "", "Worked design"));
-  box.append(el("p", "muted small", "Answer each question to see the next step. Then step through the code on the right."));
+  box.append(el("p", "muted small", "Think each question through before you show the reasoning. Then step through the code on the right."));
   for (let i = 0; i < problem.walkthrough.length; i++) {
     const step = problem.walkthrough[i];
     const card = el("div", "walk-step");
@@ -456,32 +467,25 @@ function walkthrough(problem) {
     const body = el("div", "walk-body");
     body.append(md(step.text));
     if (step.ask) {
-      body.append(el("p", "walk-ask", `<b>${inline(step.ask)}</b>`));
-      const opts = el("div", "choices compact");
-      for (const opt of step.options) {
-        const b = el("button", "choice", inline(opt));
-        if (answers[i] !== undefined) {
-          b.disabled = true;
-          if (opt === step.answer) b.classList.add("right");
-          else if (opt === answers[i]) b.classList.add("wrong");
-        }
-        b.onclick = () => { answers[i] = opt; renderStatement(); if (walkDone(problem)) renderStep(); };
-        opts.append(b);
+      body.append(el("p", "walk-ask", `<b>Think:</b> ${inline(step.ask)}`));
+      if (shown[i]) body.append(el("div", "walk-why right", inline(step.why)));
+      else {
+        const b = el("button", "btn small", "Show the reasoning");
+        b.onclick = () => { shown[i] = true; renderStatement(); if (walkDone(problem)) startStepper(problem); };
+        body.append(b);
       }
-      body.append(opts);
-      if (answers[i] !== undefined) body.append(el("div", `walk-why ${answers[i] === step.answer ? "right" : "wrong"}`, `${answers[i] === step.answer ? "Right." : "Not quite."} ${inline(step.why)}`));
     }
     card.append(body);
     box.append(card);
-    if (step.ask && answers[i] === undefined) break;  // the next step shows once this one is answered
+    if (step.ask && !shown[i]) break;  // the next step shows once this one's reasoning is shown
   }
   return box;
 }
 
 function walkDone(problem) {
   if (!problem.walkthrough) return true;
-  const answers = S.walk?.[problem.key] || [];
-  return problem.walkthrough.every((step, i) => !step.ask || answers[i] !== undefined) || !!progress().solved[problem.key];
+  const shown = S.walk?.[problem.key] || [];
+  return problem.walkthrough.every((step, i) => !step.ask || shown[i]) || !!progress().solved[problem.key];
 }
 
 function hintBox(hints) {
@@ -504,16 +508,143 @@ const STATUS_TEXT = {
   ours: "Our name: no established name exists, so this one says what it does.",
 };
 
+// a code block with each move's lines tinted
+function tinted(src, moves, cls = "") {
+  const { box } = annotatedCode(src, moves, { labels: true });
+  if (cls) box.classList.add(cls);
+  return box;
+}
+
+function nameNote(variant) {
+  return el("p", "muted small", esc(STATUS_TEXT[variant.status]) + (variant.sources.length
+    ? ` Sources: ${variant.sources.map(([label, url]) => `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(label)}</a>`).join(", ")}.`
+    : ""));
+}
+
+// a worked example in a lesson: the problem, then the visualizer playing its code (tinted by move)
+function lessonExample(ex, i, moves) {
+  const card = el("section", "lesson-example");
+  card.append(el("h3", "", `Example ${i + 1}: ${esc(ex.title)}`));
+  if (ex.classic) card.append(el("div", "classic muted small", `Known as ${esc(ex.classic)}`));
+  card.append(md(ex.statement));
+  card.append(el("div", "cases", ex.cases.map(([call, out]) => `<code>${esc(call)}</code> → <code>${esc(out)}</code>`).join("<br>")));
+  makePlayer(card, {
+    trace: ex.trace, code: ex.code, moves, viz: ex.viz, compact: true,
+    custom: { py, source: ex.code, function: ex.function, args: ex.args, notes: ex.notes },
+  });
+  if (ex.differs) card.append(el("div", "differs", `<b>What's different here.</b> ${inline(ex.differs)}`));
+  if (ex.problem && ex.problem !== S.current) {
+    const a = el("a", "btn small", "Open it as the worked example ›");
+    a.href = `#${encodeURIComponent(ex.problem)}`;
+    card.append(a);
+  }
+  return card;
+}
+
 function renderLearn() {
   const { variant, pattern } = S.index.get(S.current);
   const box = $("tab-learn");
   box.innerHTML = "";
-  box.append(el("div", "crumbs", esc(pattern.name)));
+  const crumb = pattern.overview ? `<a href="#pattern/${encodeURIComponent(pattern.key)}">${esc(pattern.name)}</a>` : esc(pattern.name);
+  const L = variant.lesson;
+  const n = pattern.variants.indexOf(variant) + 1;
+  box.append(el("div", "crumbs", `${crumb} › ${esc(variant.name)}${L ? ` · subpattern ${n} of ${pattern.variants.length}` : ""}`));
   box.append(el("h1", "", esc(variant.name)));
   box.append(el("div", "meta", `<span class="chip status-${variant.status}" title="${esc(STATUS_TEXT[variant.status])}">${esc(variant.status)} name</span>` +
     (variant.aliases.length ? `<span>also called ${variant.aliases.map((a) => `<i>${esc(a)}</i>`).join(", ")}</span>` : "")));
+  if (!L) return renderCard(box, variant);
+
+  const section = (title, cls = "") => { const s = el("section", `lesson-part ${cls}`); s.append(el("h2", "", title)); box.append(s); return s; };
+  const goals = el("div", "goals");
+  goals.append(el("div", "goals-title", "What you'll learn"));
+  const ul = el("ul");
+  for (const g of L.goals) ul.append(el("li", "", inline(g)));
+  goals.append(ul);
+  box.append(goals);
+
+  let s = section("The problem it solves");
+  s.append(md(L.problem));
+  s.append(el("div", "label-line", "The obvious way:"));
+  s.append(tinted(L.bruteForce, L.moves, "brute"));
+  s.append(el("p", "cost-line", `<b>Cost:</b> ${inline(L.bruteCost)}`));
+
+  s = section("How it works");
+  const steps = el("ol", "moves");
+  L.moves.forEach((m, i) => {
+    const li = el("li", `move m-${i + 1}`);
+    li.append(el("span", `move-chip m-${i + 1}`, `${i + 1}`), el("div", "", `<b>${esc(m.label)}.</b> ${inline(m.text)}`));
+    steps.append(li);
+  });
+  s.append(steps);
+  s.append(el("div", "label-line", "The template, with each step's lines in its color:"));
+  s.append(tinted(variant.template, L.moves));
+
+  s = section("Why it works");
+  s.append(el("div", "holds", `<b>What the table means:</b> ${inline(L.holds)}`));
+  const why = el("ul", "why");
+  for (const w of L.why) why.append(el("li", "", inline(w)));
+  s.append(why);
+
+  s = section("Worked examples");
+  s.append(el("p", "muted small", "Each example is solved with the same steps, tinted the same colors. Press play, or step with ← →, and watch the structures change. Change the input and press Run to watch it run on yours."));
+  L.examples.forEach((ex, i) => s.append(lessonExample(ex, i, L.moves)));
+
+  if (L.toolkit.length) {
+    s = section("Python toolkit");
+    for (const [label, code, noteText] of L.toolkit) {
+      const t = el("div", "tool");
+      t.append(el("div", "tool-label", `<b>${esc(label)}</b>`));
+      t.append(highlighted(code, "python"));
+      if (noteText) t.append(el("p", "small", inline(noteText)));
+      s.append(t);
+    }
+  }
+
+  s = section("Cost");
+  s.append(el("p", "", `<b>${esc(variant.complexity)}.</b> ${inline(L.costWhy)}`));
+
+  s = section("Spot it");
+  s.append(el("p", "", "Problems that need this usually say something like:"));
+  const sig = el("ul", "signals");
+  for (const x of variant.signals) sig.append(el("li", "", inline(x)));
+  s.append(sig);
+
+  s = section("Common mistakes");
+  s.append(el("p", "muted small", "Each one has a hidden test built to catch it."));
+  for (const m of variant.mistakes) {
+    const card = el("div", "mistake");
+    card.append(el("p", "", `<b>${inline(m.charAt(0).toUpperCase() + m.slice(1))}.</b>`));
+    const pair = L.mistakeCode[m];
+    if (pair) {
+      const two = el("div", "wrong-right");
+      const w = el("div", "wrong", '<div class="wr-label">✗ wrong</div>');
+      w.append(highlighted(pair[0], "python"));
+      const r = el("div", "right", '<div class="wr-label">✓ right</div>');
+      r.append(highlighted(pair[1], "python"));
+      two.append(w, r);
+      card.append(two);
+    }
+    s.append(card);
+  }
+
+  s = section("About the name", "name-note");
+  s.append(nameNote(variant));
+
+  const p = progress();
+  const ex = variant.problems.find((x) => x.role === "example");
+  if (ex && !p.solved[ex.key]) {
+    const go = el("button", "btn primary", "Now step through the worked example ›");
+    go.onclick = () => { if (S.current !== ex.key) location.hash = encodeURIComponent(ex.key); showTab("problem"); };
+    const end = el("div", "lesson-end");
+    end.append(go);
+    box.append(end);
+  }
+}
+
+// a variant without a lesson (Structures): its reference card
+function renderCard(box, variant) {
   box.append(el("p", "idea", inline(variant.idea)));
-  box.append(el("div", "invariant", `<b>Invariant.</b> ${inline(variant.invariant)}`));
+  box.append(el("div", "invariant", `<b>What stays true.</b> ${inline(variant.invariant)}`));
   box.append(el("h3", "", "Template"));
   box.append(highlighted(variant.template, "python"));
   box.append(el("p", "", `<b>Cost.</b> ${esc(variant.complexity)}`));
@@ -528,16 +659,80 @@ function renderLearn() {
     box.append(el("h3", "", "What each operation costs"));
     const t = el("table", "ops-table cost-sheet");
     t.append(el("tr", "", "<th>operation</th><th>cost</th><th></th>"));
-    for (const [op, cost, note] of variant.referenceTable) t.append(el("tr", "", `<td><code>${esc(op)}</code></td><td><b>${esc(cost)}</b></td><td class="muted">${esc(note)}</td>`));
+    for (const [op, cost, noteText] of variant.referenceTable) t.append(el("tr", "", `<td><code>${esc(op)}</code></td><td><b>${esc(cost)}</b></td><td class="muted">${esc(noteText)}</td>`));
     box.append(t);
   }
   list("Signals: when a problem says…", variant.signals);
-  list("Easily confused with", variant.nearMisses);
   list("Common mistakes (each one has a test that catches it)", variant.mistakes);
   box.append(el("h3", "", "About the name"));
-  box.append(el("p", "muted small", esc(STATUS_TEXT[variant.status]) + (variant.sources.length
-    ? ` Sources: ${variant.sources.map(([label, url]) => `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(label)}</a>`).join(", ")}.`
-    : "")));
+  box.append(nameNote(variant));
+}
+
+//a pattern's overview: how its structure works, and the map of its subpatterns
+
+function showOverview(key) {
+  showView("overview");
+  const pattern = S.data.patterns.find((p) => p.key === key);
+  const p = progress();
+  const box = $("overview-view");
+  box.innerHTML = "";
+  const page = el("div", "overview-page");
+  const head = el("section", "panel");
+  head.append(el("div", "crumbs", `<a href="#" class="wall-link">${esc(C.title)}</a> › ${esc(pattern.name)}`));
+  head.querySelector(".wall-link").onclick = (e) => { e.preventDefault(); history.pushState(null, "", location.pathname); showWall(); };
+  head.append(el("h1", "", esc(pattern.name)));
+  head.append(el("p", "idea", inline(pattern.idea)));
+  head.append(md(pattern.overview));
+  page.append(head);
+
+  const first = pattern.variants[0]?.lesson?.examples[0];
+  if (first) {
+    const demo = el("section", "panel");
+    demo.append(el("h2", "", "Watch a hash table answer"));
+    demo.append(el("p", "muted small", "The set is drawn as its 8 buckets. On each lookup, watch only one bucket get checked, never the whole set. Change the input and press Run to try your own."));
+    makePlayer(demo, { trace: first.trace, code: first.code, moves: pattern.variants[0].lesson.moves, viz: first.viz, compact: true,
+      custom: { py, source: first.code, function: first.function, args: first.args, notes: first.notes } });
+    page.append(demo);
+  }
+
+  const map = el("section", "panel");
+  map.append(el("h2", "", "The map"));
+  map.append(el("p", "", "Pick the subpattern by what you need to know about the items you've already passed:"));
+  const table = el("table", "map-table");
+  table.append(el("tr", "", "<th>You need to know…</th><th>Keep</th><th>Subpattern</th><th>The line that gives it away</th><th></th>"));
+  for (const [question, keep, vkey, line] of pattern.map) {
+    const v = pattern.variants.find((x) => x.key === vkey);
+    const st = variantState(v, p);
+    const tr = el("tr");
+    tr.append(el("td", "", esc(question)), el("td", "", esc(keep)));
+    tr.append(el("td", "", `<b>${esc(v.name)}</b> <span class="chip ${st.laid ? "easy" : ""}">${st.laid ? "laid" : st.started ? `${st.solved}/${st.total}` : "new"}</span>`));
+    tr.append(el("td", "map-line"));
+    tr.lastChild.append(highlighted(line, "python"));
+    const go = el("a", "btn small", st.laid ? "Review ›" : st.started ? "Continue ›" : "Start ›");
+    go.href = `#${encodeURIComponent(nextProblem(v, p).key)}`;
+    const td = el("td");
+    td.append(go);
+    tr.append(td);
+    table.append(tr);
+  }
+  for (const x of pattern.planned) {
+    if (!x.question) continue;
+    const tr = el("tr", "planned-row");
+    tr.append(el("td", "", esc(x.question)), el("td", "", esc(x.keep)));
+    tr.append(el("td", "", `<b>${esc(x.name)}</b> <span class="chip">planned</span>${x.classic ? `<div class="muted small">${esc(x.classic)}</div>` : ""}`));
+    tr.append(el("td", "map-line"));
+    tr.lastChild.append(highlighted(x.line, "python"));
+    tr.append(el("td"));
+    table.append(tr);
+  }
+  const wrap = el("div", "table-scroll");
+  wrap.append(table);
+  map.append(wrap);
+  map.append(el("p", "muted small", "Learn them in this order: each one adds one thing to the one before. A set answers whether; a dict of counts answers how many; a dict of positions answers where a partner was; a dict of lists answers which ones go together."));
+  page.append(map);
+  box.append(page);
+  renderProgressBar();
+  window.scrollTo(0, 0);
 }
 
 function renderSolution() {
@@ -659,8 +854,10 @@ function solved(key) {
     go.href = `#${encodeURIComponent(next.key)}`;
     banner.append(go);
   }
-  const target = problem.role === "example" ? $("step-panel") : $("results");
-  target.prepend(banner);
+  if (problem.role === "example") {
+    $("step-pane").prepend(banner);
+    S.player?.refresh();
+  } else $("results").prepend(banner);
   celebrate(result.laid, problem.role === "example" ? banner : $("results-summary"), problem.role === "example" ? null : document.querySelector("#solve-pane .editor"));
   if (result.laid) toast(`Brick laid: ${variant.name}`);
   renderProgressBar();
@@ -683,202 +880,41 @@ function after(key) {
   return rec ? nextProblem(rec.variant, p) : null;
 }
 
-//the worked-example stepper: walks the trace built at build time from the reference solution (categories/framework/trace.py)
-
-let stepMark = null;
+//the worked-example stepper: the visualizer, playing the trace built from the reference solution
+//(categories/framework/trace.py), in the right-hand pane
 
 function startStepper(problem) {
-  S.step = 0;
-  S.answered = new Set();
-  stepCm.setValue(problem.reference.replace(/\n$/, ""));
-  $("step-call").textContent = problem.kind === "class" ? `${problem.function}: ${plural(problem.trace.script.length - 1, "operation")}` : problem.trace.call;
-  setTimeout(() => { stepCm.refresh(); renderStep(); }, 0);
-}
-
-function renderStep() {
-  const { problem } = S.index.get(S.current);
-  const steps = problem.trace.steps;
-  const i = S.step;
-  const step = steps[i];
-  const last = i === steps.length - 1;
-  if (stepMark !== null) stepCm.removeLineClass(stepMark, "background", "cm-step-line");
-  stepMark = step.line ? step.line - 1 : null;
-  if (stepMark !== null) {
-    stepCm.addLineClass(stepMark, "background", "cm-step-line");
-    stepCm.scrollIntoView({ line: stepMark, ch: 0 }, 60);
-  }
-  $("step-count").textContent = `step ${i + 1} of ${steps.length}`;
-
-  const panel = $("step-panel");
-  panel.innerHTML = "";
-  $("step-pane").classList.toggle("locked", !walkDone(problem));  // the code would give the design away
-  if (!walkDone(problem)) {
-    panel.append(el("div", "step-note", "<b>First, the design.</b> Answer the questions on the left; then step through the code here and watch it run."));
-    return;
-  }
-  const waiting = step.predict && !S.answered.has(i);
-  if (step.op) {
-    panel.append(el("div", "step-note op-note", `<b>Calling</b> <code>${esc(step.op)}</code>`));
-  } else if (step.returns !== undefined) {
-    panel.append(el("div", "step-note", `<b>Line ${step.line} returns</b> <code>${esc(step.returns)}</code>.`));
-  } else {
-    panel.append(el("div", "step-note", `<b>About to run line ${step.line}${step.in && step.in !== problem.function && problem.kind === "class" ? ` in ${esc(step.in)}()` : ""}.</b> ${step.note ? esc(step.note) : ""}`));
-  }
-  if (step.predict) {
-    const box = el("div", "predict");
-    box.append(el("div", "", `<b>Predict:</b> will <code>${esc(step.predict.ask)}</code> be True or False?`));
-    const buttons = el("div", "predict-buttons");
-    for (const v of [true, false]) {
-      const b = el("button", "btn", v ? "True" : "False");
-      b.disabled = !waiting;
-      b.onclick = () => {
-        S.answered.add(i);
-        S.lastGuess = { i, right: v === step.predict.answer };
-        renderStep();
-      };
-      buttons.append(b);
-    }
-    box.append(buttons);
-    if (!waiting) {
-      const right = S.lastGuess?.i === i ? S.lastGuess.right : null;
-      box.append(el("div", `verdict-line ${right === false ? "wrong" : "right"}`,
-        `${right === false ? "Not quite: it's" : right === true ? "Right: it's" : "It's"} <b>${step.predict.answer ? "True" : "False"}</b>.`));
-    }
-    panel.append(box);
-  }
-  const table = el("table", "vars-table state");
-  const prevStep = steps.slice(0, i).reverse().find((x) => x.vars.length);
-  const prev = prevStep ? Object.fromEntries(prevStep.vars) : {};
-  for (const [name, value] of step.vars) {
-    const tr = el("tr", prev[name] !== undefined && prev[name] !== value ? "changed" : "");
-    tr.append(el("td", "vname", esc(name)), el("td", "vval", esc(value)));
-    table.append(tr);
-  }
-  if (step.vars.length) {
-    panel.append(el("div", "label", "Variables"));
-    panel.append(table);
-  }
-  const controls = el("div", "step-controls");
-  const back = el("button", "btn", "◀ Back");
-  back.disabled = i === 0;
-  back.onclick = () => { S.step--; renderStep(); };
-  const fwd = el("button", "btn primary", "Next ▶");
-  fwd.disabled = last || waiting;
-  fwd.onclick = () => { S.step++; renderStep(); };
-  controls.append(back, fwd);
-  if (last) {
-    const p = progress();
-    if (p.solved[problem.key]) {
-      const next = after(problem.key);
-      if (next) {
-        const go = el("a", "btn primary", `Next: ${esc(next.title)} ›`);
-        go.href = `#${encodeURIComponent(next.key)}`;
-        controls.append(go);
+  const pane = $("step-pane");
+  S.player?.stop();
+  pane.innerHTML = "";
+  const { variant } = S.index.get(problem.key);
+  const locked = () => !walkDone(problem);
+  pane.classList.toggle("locked", locked());
+  if (locked()) pane.append(el("div", "vp-lock", "<b>First, the design.</b> Think through the steps on the left and show their reasoning; then step through the code here and watch it run."));
+  S.player = makePlayer(pane, {
+    trace: problem.trace, code: problem.reference, moves: variant.lesson?.moves || [], viz: problem.viz || {},
+    kind: problem.kind, locked,
+    custom: problem.kind === "function" ? { py, source: problem.reference, function: problem.function, args: problem.trace.call.slice(problem.function.length + 1, -1), notes: problem.notes } : null,
+    onStep: (i, n, footer) => {
+      if (i !== n - 1) return;
+      const p = progress();
+      if (p.solved[problem.key]) {
+        const next = after(problem.key);
+        if (next) {
+          const go = el("a", "btn primary", `Next: ${esc(next.title)} ›`);
+          go.href = `#${encodeURIComponent(next.key)}`;
+          footer.append(go);
+        }
+      } else {
+        const done = el("button", "btn primary", "Mark as studied ✓");
+        done.onclick = async () => {
+          if (!(await requireSignIn("Sign in to save your progress."))) return;
+          solved(problem.key);
+        };
+        footer.append(done);
       }
-    } else {
-      const done = el("button", "btn primary", "Mark as studied ✓");
-      done.onclick = async () => {
-        if (!(await requireSignIn("Sign in to save your progress."))) return;
-        renderStep();  // first, so the banner solved() adds isn't wiped by the redraw
-        solved(problem.key);
-      };
-      controls.append(done);
-    }
-  }
-  panel.append(controls);
-  if (waiting) panel.append(el("div", "muted small", "Answer the prediction to continue."));
-}
-
-//recognition drills
-
-function startDrill() {
-  showView("drill");
-  const p = progress();
-  const touched = allVariants().filter(({ variant }) => variant.problems.some((x) => p.solved[x.key]));
-  const pool = (touched.length >= 2 ? touched : allVariants()).flatMap(({ variant }) => variant.drills);
-  S.drill = { items: shuffled(pool).slice(0, 8), i: 0, named: 0, signals: 0, phase: "name" };
-  renderDrill();
-}
-
-function renderDrill() {
-  const box = $("drill-view");
-  box.innerHTML = "";
-  const page = el("div", "drill-page");
-  const d = S.drill;
-  const card = el("section", "panel drill-card");
-  if (d.i >= d.items.length) {
-    card.innerHTML = `<h1>Drill done</h1><p>You got <b>${d.named} of ${d.items.length}</b> answers right, and spotted <b>${d.signals} of ${d.items.length}</b> signals.</p>`;
-    const again = el("button", "btn primary", "Another round");
-    again.onclick = startDrill;
-    const wall = el("a", "btn", "Back to the wall");
-    wall.href = "#";
-    wall.onclick = (e) => { e.preventDefault(); history.pushState(null, "", location.pathname); showWall(); };
-    const row = el("div", "wall-actions");
-    row.append(again, wall);
-    card.append(row);
-    page.append(card);
-    box.append(page);
-    return;
-  }
-  const item = d.items[d.i];
-  card.append(el("div", "meta", `<span class="chip">Recognition drill</span><span>${d.i + 1} of ${d.items.length}</span>`));
-  card.append(el("p", "drill-statement", esc(item.statement)));
-
-  card.append(el("h3", "", esc(item.question || C.drillQuestion)));
-  item.nameOptions ||= shuffled([item.answer, ...item.choices]);
-  const names = el("div", "choices");
-  for (const opt of item.nameOptions) {
-    const b = el("button", "choice", esc(opt));
-    if (item.picked) {
-      b.disabled = true;
-      if (opt === item.answer) b.classList.add("right");
-      else if (opt === item.picked) b.classList.add("wrong");
-    }
-    b.onclick = () => {
-      item.picked = opt;
-      if (opt === item.answer) d.named++;
-      renderDrill();
-    };
-    names.append(b);
-  }
-  card.append(names);
-
-  if (item.picked) {
-    card.append(el("h3", "", "What gave it away?"));
-    item.signalOptions ||= shuffled([item.signal, ...item.wrongSignals]);
-    const sigs = el("div", "choices");
-    for (const opt of item.signalOptions) {
-      const b = el("button", "choice", esc(opt));
-      if (item.pickedSignal) {
-        b.disabled = true;
-        if (opt === item.signal) b.classList.add("right");
-        else if (opt === item.pickedSignal) b.classList.add("wrong");
-      }
-      b.onclick = () => {
-        item.pickedSignal = opt;
-        const ok = item.picked === item.answer && opt === item.signal;
-        if (opt === item.signal) d.signals++;
-        const p = progress();
-        const first = !p.drills[item.key]?.ok && ok;
-        p.drills[item.key] = { ok: ok || !!p.drills[item.key]?.ok, t: Date.now() };
-        saveProgress(p);
-        if (first) logSolve(`${C.key}-drill`, item.key, `Drill: ${item.answer}`);
-        renderDrill();
-      };
-      sigs.append(b);
-    }
-    card.append(sigs);
-  }
-  if (item.pickedSignal) {
-    card.append(el("div", "takeaway", `<b>${esc(item.answer)}.</b> ${esc(item.why)}`));
-    const next = el("button", "btn primary", d.i + 1 < d.items.length ? "Next drill ›" : "Finish");
-    next.onclick = () => { d.i++; renderDrill(); };
-    const row = el("div", "wall-actions");
-    row.append(next);
-    card.append(row);
-  }
-  page.append(card);
-  box.append(page);
+    },
+  });
 }
 
 //startup
@@ -910,7 +946,6 @@ async function main() {
       "Cmd-/": "toggleComment",
     }),
   });
-  stepCm = CodeMirror($("step-code"), { mode: "python", lineNumbers: true, readOnly: "nocursor", lineWrapping: true });
   errors = errorLine(cm);
   let saveTimer;
   cm.on("change", () => { clearTimeout(saveTimer); saveTimer = setTimeout(saveCode, 400); });
@@ -937,16 +972,16 @@ async function main() {
   });
   document.addEventListener("keydown", (e) => {
     if ($("problem-view").hidden || e.target.closest("textarea, input, .CodeMirror")) return;
-    if (!$("step-pane").hidden && (e.key === "ArrowRight" || e.key === "ArrowLeft")) {
-      const btn = [...$("step-panel").querySelectorAll(".step-controls .btn")].find((b) => b.textContent.includes(e.key === "ArrowRight" ? "Next ▶" : "Back"));
-      if (btn && !btn.disabled) { e.preventDefault(); btn.click(); }
+    if (!$("step-pane").hidden && S.player && !e.target.closest(".vplayer") && (e.key === "ArrowRight" || e.key === "ArrowLeft")) {
+      e.preventDefault();
+      if (e.key === "ArrowRight") S.player.next(); else S.player.back();
     }
     if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); runTests(e.shiftKey ? "submit" : "run"); }
   });
   window.addEventListener("beforeunload", saveCode);
   window.addEventListener("hashchange", route);
   window.addEventListener("popstate", route);
-  setupSplitters(C.key, () => { cm.refresh(); stepCm.refresh(); });
+  setupSplitters(C.key, () => { cm.refresh(); S.player?.refresh(); });
   await loadCatalog();
   route();
 }

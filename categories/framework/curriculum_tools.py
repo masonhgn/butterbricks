@@ -8,9 +8,9 @@ import shutil
 import sys
 
 from . import runner
-from .curriculum import BLANK, ROLE_LABELS, check_category
-from .tests import REFERENCE, fresh, show
-from .trace import build_trace
+from .curriculum import BLANK, ROLE_LABELS, PlannedVariant, check_category, strip_tags
+from .tests import REFERENCE, fresh, show, show_call
+from .trace import build_trace, trace_function
 
 
 #the page's data
@@ -32,19 +32,51 @@ def _problem_manifest(problem):
         d = problem.design
         out["design"] = {"state": d.state, "invariant": d.invariant, "costs": d.costs, "checks": d.checks}
     if problem.walkthrough:
-        out["walkthrough"] = [{"text": s.text, "ask": s.ask, "options": s.options, "answer": s.answer, "why": s.why}
+        out["walkthrough"] = [{"text": s.text, "ask": s.ask, "why": s.why}
                               for s in problem.walkthrough]
+    if problem.viz:
+        out["viz"] = problem.viz
     if problem.role == "example":
         out["trace"] = build_trace(problem)
+        out["notes"] = problem.notes
     return out
+
+
+def _example_manifest(ex):
+    return {
+        "title": ex.title, "statement": ex.statement, "function": ex.function, "code": ex.code,
+        "cases": [[show_call(ex.function, args), show(expected)] for args, expected in ex.cases],
+        "differs": ex.differs, "classic": ex.classic, "notes": ex.notes, "viz": ex.viz, "problem": ex.problem,
+        "args": ", ".join(repr(a) for a in ex.trace_args),
+        "trace": trace_function(ex.code, ex.function, ex.trace_args, ex.notes, key=ex.title),
+    }
+
+
+def _lesson_manifest(L):
+    return {
+        "goals": L.goals, "problem": L.problem, "bruteForce": L.brute_force, "bruteCost": L.brute_cost,
+        "moves": [{"key": m.key, "label": m.label, "text": m.text} for m in L.moves],
+        "holds": L.holds, "why": L.why, "costWhy": L.cost_why,
+        "examples": [_example_manifest(ex) for ex in L.examples],
+        "toolkit": [list(t) for t in L.toolkit],
+        "mistakeCode": {m: list(pair) for m, pair in L.mistake_code.items()},
+    }
+
+
+def _planned_manifest(item):
+    if isinstance(item, str):
+        return {"name": item}
+    return {"name": item.name, "question": item.question, "keep": item.keep, "line": item.line,
+            "status": item.status, "aliases": item.aliases, "classic": item.classic}
 
 
 def _variant_manifest(v):
     return {
         "key": v.key, "name": v.name, "status": v.status, "aliases": v.aliases, "sources": v.sources,
         "idea": v.idea, "invariant": v.invariant, "template": v.template, "complexity": v.complexity,
-        "signals": v.signals, "nearMisses": v.near_misses, "mistakes": v.mistakes, "prerequisites": v.prerequisites,
+        "signals": v.signals, "mistakes": v.mistakes, "prerequisites": v.prerequisites,
         "referenceTable": [list(r) for r in v.reference_table],
+        "lesson": _lesson_manifest(v.lesson) if v.lesson else None,
         "problems": [_problem_manifest(p) for p in v.problems],
         "drills": [{"key": d.key, "statement": d.statement, "question": d.question, "answer": d.answer,
                     "choices": d.choices, "signal": d.signal, "wrongSignals": d.wrong_signals, "why": d.why}
@@ -72,7 +104,8 @@ def build(here, web, patterns, planned, label):
         "files": files,
         "planned": planned,
         "patterns": [{"key": p.key, "name": p.name, "status": p.status, "aliases": p.aliases, "idea": p.idea,
-                      "sources": p.sources, "planned": p.planned,
+                      "sources": p.sources, "planned": [_planned_manifest(x) for x in p.planned],
+                      "overview": p.overview, "map": [list(r) for r in p.map_rows],
                       "variants": [_variant_manifest(v) for v in p.variants]} for p in patterns],
     }
     path = os.path.join(web, f"{label}.json")
@@ -114,6 +147,46 @@ def run_problem(problem, source, quiet=False):
     return passed, len(problem.tests)
 
 
+def _normalized(code):
+    lines = [l.split("#")[0].rstrip() for l in strip_tags(code).splitlines()]
+    return "\n".join(l for l in lines if l.strip())
+
+
+def check_lesson(v):
+    """a lesson's code all runs and says what it claims: every example gives its cases, the brute force agrees with the
+    first example, every trace builds, and no example is a practice problem's answer in disguise"""
+    L = v.lesson
+    out = []
+    answers = {_normalized(p.reference): p.key for p in v.problems if p.role != "example"}
+    for ex in L.examples:
+        try:
+            module = runner.load_source(ex.code, name="lesson_example", filename="lesson.py")
+            fn = getattr(module, ex.function)
+            for args, expected in ex.cases:
+                got = fn(*fresh(tuple(args)))
+                if got != expected:
+                    out.append(f"{ex.title}: {show_call(ex.function, args)} gives {show(got)}, not {show(expected)}")
+            trace = trace_function(ex.code, ex.function, ex.trace_args, ex.notes, key=ex.title)
+            json.dumps(trace)
+            if len(trace["steps"]) > 80:
+                out.append(f"{ex.title}: the trace has {len(trace['steps'])} steps; keep it under 80 to follow")
+        except runner.LoadError as e:
+            out.append(f"{ex.title}: {e.message}")
+        except Exception as e:  # noqa: BLE001
+            out.append(f"{ex.title}: {type(e).__name__}: {e}")
+        if _normalized(ex.code) in answers:
+            out.append(f"{ex.title}: it's the answer to {answers[_normalized(ex.code)]}")
+    first = L.examples[0]
+    try:
+        brute = getattr(runner.load_source(L.brute_force, name="brute", filename="brute.py"), first.function)
+        for args, expected in first.cases:
+            if brute(*fresh(tuple(args))) != expected:
+                out.append(f"the brute force disagrees with {first.title} on {show_call(first.function, args)}")
+    except Exception as e:  # noqa: BLE001
+        out.append(f"the brute force: {getattr(e, 'message', e)}")
+    return out
+
+
 def selftest(patterns):
     """every reference passes its tests, every trace builds, and a do-nothing or unfilled solution fails"""
     check_category(patterns)
@@ -139,6 +212,11 @@ def selftest(patterns):
                         problems_here.append("the unfilled starter passes every test")
                 mark = _paint("✓", "32") if not problems_here else _paint("✗", "31")
                 print(f"  {mark} {v.name} · {ROLE_LABELS[p.role]:<18} {p.key}  {'; '.join(problems_here)}")
+                failures += problems_here
+            if v.lesson:
+                problems_here = check_lesson(v)
+                mark = _paint("✓", "32") if not problems_here else _paint("✗", "31")
+                print(f"  {mark} {v.name} · {'Lesson':<18} {len(v.lesson.examples)} examples  {'; '.join(problems_here)}")
                 failures += problems_here
     print(_paint("all good", "32") if not failures else _paint(f"{len(failures)} problem(s)", "31"))
     return not failures
@@ -202,4 +280,18 @@ def browser_functions(get_problem):
     def scratch(source, snippet):
         return json.dumps(runner.scratch(source, snippet))
 
-    return prepare, run_one, scratch
+    def trace(source, function, args, notes):
+        """trace an example on input typed on the page (a Python argument list, like `[1, 2], 3`)"""
+        import ast
+        try:
+            parsed = ast.literal_eval(f"({args},)") if args.strip() else ()
+        except Exception as e:  # noqa: BLE001
+            return json.dumps({"error": f"Couldn't read that input: {type(e).__name__}. Write Python values separated by commas, like [1, 2], 3"})
+        try:
+            return json.dumps(trace_function(source, function, parsed, json.loads(notes), custom=True))
+        except runner.LoadError as e:
+            return json.dumps({"error": e.message})
+        except Exception as e:  # noqa: BLE001
+            return json.dumps({"error": f"{type(e).__name__}: {e}"})
+
+    return prepare, run_one, scratch, trace

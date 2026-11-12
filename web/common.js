@@ -94,6 +94,7 @@ function armed(button, prompt, action) {
 
 // syntax-highlighted code outside the editor
 function highlighted(src, mode) {
+  src = src.replace(/[ \t]*# @[a-z][a-z0-9-]*[ \t]*$/gm, "");  // a lesson's move tags (see visual.js) aren't for reading
   const pre = el("pre");
   const code = el("code");
   CodeMirror.runMode(src, mode, code);

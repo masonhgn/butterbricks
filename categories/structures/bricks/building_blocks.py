@@ -76,16 +76,12 @@ operation_costs = Technique(
                 Step("**Start with the obvious design: a Python list.** `join` appends to the end, `serve` takes "
                      "from the front with `pop(0)`, and `waiting` is `len`.",
                      ask="Which operation is slow with a list?",
-                     options=["join: append(name)", "serve: pop(0)", "waiting: len(line)"],
-                     answer="serve: pop(0)",
-                     why="Removing the first item shifts every other item one place left: O(n). Appending at the end "
+                     why="**serve, because of `pop(0)`.** Removing the first item shifts every other item one place left: O(n). Appending at the end "
                          "and asking the length are O(1)."),
                 Step("**So we need a structure that's fast at both ends.** Python's `collections.deque` (a "
                      "double-ended queue) adds and removes at either end in O(1).",
                      ask="Which deque method takes from the front of the line?",
-                     options=["pop()", "popleft()", "remove(name)"],
-                     answer="popleft()",
-                     why="pop() takes from the right, the back of the line. remove(name) searches by value: O(n)."),
+                     why="**`popleft()`.** `pop()` takes from the right, the back of the line. remove(name) searches by value: O(n)."),
                 Step("**The invariant:** the deque holds exactly the people waiting, oldest at the left. `join` keeps "
                      "it true by adding on the right; `serve` by removing on the left. **Now step through the code** "
                      "on the right, and watch `self.line` change."),
@@ -122,7 +118,6 @@ operation_costs = Technique(
                 "return self.line.popleft()": "Serve the front: O(1), and nobody has to shift.",
                 "return len(self.line)": "A deque knows its length: O(1).",
             },
-            predict={"if not self.line": "not self.line"},
             takeaway="Knowing which end of which structure is cheap is the whole design here. A list is fine at its "
                      "end; a queue needs a deque.",
         ),

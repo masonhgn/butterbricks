@@ -150,31 +150,21 @@ position_map = Technique(
             walkthrough=[
                 Step("**First idea: a set.** `add`, `remove` and \"is it there?\" are all O(1) on a set.",
                      ask="With only a set, which operation can't be O(1)?",
-                     options=["add", "remove", "draw"],
-                     answer="draw",
-                     why="random.choice needs a sequence it can index into, and a set has no positions. Converting the "
+                     why="**draw.** `random.choice` needs a sequence it can index into, and a set has no positions. Converting the "
                          "set to a list for every draw copies every ticket: O(n)."),
                 Step("**Second idea: a list.** `random.choice(items)` picks a random index in O(1).",
                      ask="With only a list, which operations are now too slow?",
-                     options=["only draw", "only remove", "add and remove", "none of them"],
-                     answer="add and remove",
-                     why="add has to check the ticket isn't already there (`ticket in items` scans), and remove has to "
+                     why="**add and remove.** add has to check the ticket isn't already there (`ticket in items` scans), and remove has to "
                          "find the ticket (another scan) and close the gap (every later ticket shifts). Both O(n)."),
                 Step("**Keep both: a list for drawing, and a dict for finding.** The list holds every ticket; the "
                      "dict maps each ticket to its index in the list. Finding is now O(1). Removing still leaves a gap "
                      "in the middle of the list.",
                      ask="How can you remove a ticket from the middle of the list in O(1)?",
-                     options=["Swap it with the last ticket, then pop the end", "Set its slot to None",
-                              "Call items.remove(ticket)", "Build a new list without it"],
-                     answer="Swap it with the last ticket, then pop the end",
-                     why="Popping the end is O(1), and a raffle doesn't care about order, so the last ticket can fill "
+                     why="**Swap it with the last ticket, then pop the end.** Popping the end is O(1), and a raffle doesn't care about order, so the last ticket can fill "
                          "the gap. A None would leave holes that draw() could land on."),
                 Step("**The swap moves a ticket, so the dict must follow it.**",
                      ask="Right after the last ticket moves into the gap at index i, what must change in the dict?",
-                     options=["Nothing: the dict only matters for the removed ticket",
-                              "The moved ticket's entry becomes i", "Every entry after i goes down by one"],
-                     answer="The moved ticket's entry becomes i",
-                     why="Only one ticket moved, and only its recorded position is now wrong. Nothing else shifted, "
+                     why="**The moved ticket's entry becomes i.** Only one ticket moved, and only its recorded position is now wrong. Nothing else shifted, "
                          "which is the whole point of the swap."),
                 Step("**The invariant:** `pos[items[i]] == i` for every i, and the dict holds exactly the tickets in "
                      "the list. Every operation must keep it true. **Now step through the code** on the right: watch "
@@ -221,6 +211,7 @@ position_map = Technique(
                       "        return random.choice(self.items)\n",
             tests=[OpsTest("add, remove, draw", [("add", ("A",), True), ("add", ("A",), False), ("remove", ("A",), True),
                                                 ("draw", (), None)])],
+            viz={"indexes": {"self.pos": "self.items"}},
             trace_script=[("add", ("A",)), ("add", ("B",)), ("add", ("C",)), ("remove", ("A",))],
             notes={
                 "self.items = []": "The list: every ticket, in no particular order.",
@@ -236,7 +227,6 @@ position_map = Technique(
                 "del self.pos[ticket]": "Forget the removed ticket. Doing this last is what makes removing the last "
                                         "ticket safe.",
             },
-            predict={"self.pos[last] = i": "self.pos[last] == i"},
             takeaway="Neither structure could do all three operations; together, joined by the position map, they "
                      "can. The price is the invariant: every operation that moves an item must update its position.",
         ),

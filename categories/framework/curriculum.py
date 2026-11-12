@@ -9,6 +9,7 @@ trace_script) or, for classes, a worked design: questions about the design, then
 The checks here enforce the authoring checklist, so a variant that's missing a role, a common mistake without a test
 that catches it, or a completion without blanks fails to load instead of shipping half-built."""
 
+import re
 from dataclasses import dataclass, field
 
 from .tests import CallTest, CostTest, OpsTest, ScenarioTest
@@ -26,21 +27,89 @@ ROLE_LABELS = {
 }
 NAME_STATUS = {"consensus", "textbook", "ours"}
 BLANK = "___"  # what a completion problem's starter leaves for the learner to fill in
+TAG = re.compile(r"\s*# @([a-z][a-z0-9-]*)\s*$")  # a line's move tag, like  # @ask
+
+
+def move_tags(code):
+    """the move each line is tagged with: {line number: key}"""
+    out = {}
+    for i, line in enumerate(code.splitlines(), 1):
+        m = TAG.search(line)
+        if m:
+            out[i] = m.group(1)
+    return out
+
+
+def strip_tags(code):
+    return "\n".join(TAG.sub("", line) for line in code.split("\n"))
 
 
 @dataclass
 class Step:
-    """one step of a worked design: some text, and optionally a question to answer before the next step shows"""
+    """one step of a worked design: some text, and optionally a question to think about, whose reasoning is shown when
+    asked for (no options to pick from: you think it through, then compare)"""
 
     text: str  # markdown
     ask: str = ""
-    options: list = field(default_factory=list)
-    answer: str = ""  # one of options
-    why: str = ""  # shown once answered
+    why: str = ""  # the reasoning, revealed on request
 
-    def __post_init__(self):
-        if self.ask and self.answer not in self.options:
-            raise ValueError(f"step {self.ask!r}: the answer must be one of the options")
+
+@dataclass
+class Move:
+    """one named step of a pattern (a subgoal label). Code lines that do this step end with the tag `# @<key>`, and
+    every place the code is shown tints those lines in the move's color, so the pattern stands out from the problem"""
+
+    key: str
+    label: str
+    text: str
+
+
+@dataclass
+class Example:
+    """a solved problem in a lesson: read-only, run to check it, and playable in the visualizer"""
+
+    title: str
+    statement: str
+    function: str
+    code: str  # move-tagged lines; problem-specific lines untagged
+    cases: list  # (args tuple, expected) pairs the code must produce
+    trace_args: tuple
+    differs: str = ""  # how this one differs from the template
+    classic: str = ""  # the well-known problem it matches
+    notes: dict = field(default_factory=dict)  # code fragment -> what that line is doing
+    viz: dict = field(default_factory=dict)  # hints for the visualizer (see web/visual.js)
+    problem: str = ""  # the key of the brick problem this example is, if any
+
+
+@dataclass
+class Lesson:
+    """a subpattern's Learn page: what it teaches, why the obvious code is slow, the steps, why it works, worked examples,
+    Python idioms and mistakes with code. docs/patterns-taxonomy.md ("Lesson format") explains the layout"""
+
+    goals: list
+    problem: str  # the question it answers, in plain words (markdown)
+    brute_force: str  # the obvious code; it runs, and agrees with examples[0]
+    brute_cost: str
+    moves: list
+    holds: str  # what the table means at every step
+    why: list  # [at the start, after each step, at the end]
+    examples: list
+    cost_why: str
+    toolkit: list = field(default_factory=list)  # (label, code, note) triples
+    mistake_code: dict = field(default_factory=dict)  # mistake -> (wrong code, right code)
+
+
+@dataclass
+class PlannedVariant:
+    """a subpattern on the map that isn't built yet"""
+
+    name: str
+    question: str  # "You need to know…"
+    keep: str
+    line: str  # the tell-tale line of code
+    status: str = "ours"
+    aliases: list = field(default_factory=list)
+    classic: str = ""
 
 
 @dataclass
@@ -75,7 +144,7 @@ class Problem:
     trace_init: tuple = ()  # a class example's constructor arguments
     trace_script: list = None  # a class example's operations, as (method, args) pairs, which the stepper walks through
     notes: dict = field(default_factory=dict)  # an example's code fragment -> what that line is doing
-    predict: dict = field(default_factory=dict)  # an example's code fragment -> a yes/no expression to predict there
+    viz: dict = field(default_factory=dict)  # hints for the visualizer (see web/visual.js)
 
     def __post_init__(self):
         if self.role not in ROLES:
@@ -133,12 +202,13 @@ class Variant:
     template: str
     complexity: str
     signals: list
-    near_misses: list
+    near_misses: list  # kept for the docs; not shown on the page
     mistakes: list  # each must be caught by at least one test's `catches`
     prerequisites: list  # variant keys
     problems: list
     drills: list
     reference_table: list = field(default_factory=list)  # optional (operation, cost, note) rows, for Learn
+    lesson: Lesson = None  # the full Learn page; without one, Learn shows the reference card
 
     def __post_init__(self):
         if self.status not in NAME_STATUS:
@@ -162,6 +232,37 @@ class Variant:
                 raise ValueError(f"{d.key}: the right answer is added automatically; don't list {d.answer!r}")
         # problems in the order they're met: the sequence, then the reviews
         self.problems.sort(key=lambda p: ROLES.index(p.role))
+        if self.lesson:
+            self._check_lesson()
+
+    def _check_lesson(self):
+        L = self.lesson
+        moves = [m.key for m in L.moves]
+        if len(set(moves)) != len(moves) or not 2 <= len(moves) <= 4:
+            raise ValueError(f"{self.key}: a lesson has 2 to 4 moves with distinct keys")
+        def tags_ok(code, where):
+            unknown = set(move_tags(code).values()) - set(moves)
+            if unknown:
+                raise ValueError(f"{self.key}: {where} tags unknown moves {sorted(unknown)}")
+            return set(move_tags(code).values())
+        missing = set(moves) - tags_ok(self.template, "the template")
+        if missing:
+            raise ValueError(f"{self.key}: the template doesn't show the moves {sorted(missing)}")
+        if len(L.examples) < 2:
+            raise ValueError(f"{self.key}: a lesson needs at least two worked examples")
+        for ex in L.examples:
+            if len(tags_ok(ex.code, f"example {ex.title!r}")) < 2:
+                raise ValueError(f"{self.key}: example {ex.title!r} should show at least two of the moves")
+            if not ex.cases:
+                raise ValueError(f"{self.key}: example {ex.title!r} needs cases to check it against")
+        for p in self.problems:
+            if p.role == "example":
+                tags_ok(p.reference, f"problem {p.key}")
+        if len(L.why) != 3:
+            raise ValueError(f"{self.key}: why is [at the start, after each step, at the end]")
+        unknown = [m for m in L.mistake_code if m not in self.mistakes]
+        if unknown:
+            raise ValueError(f"{self.key}: mistake_code for mistakes that aren't listed: {unknown}")
 
     def sequence(self):
         return [p for p in self.problems if p.role in SEQUENCE]
@@ -179,8 +280,9 @@ class Pattern:
     idea: str
     variants: list
     sources: list = field(default_factory=list)
-    planned: list = field(default_factory=list)  # names of variants still to come, shown as bricks not yet laid
-
+    planned: list = field(default_factory=list)  # PlannedVariants (or names) still to come, shown as bricks not yet laid
+    overview: str = ""  # markdown for the pattern's overview page, above its map
+    map_rows: list = field(default_factory=list)  # (question, keep, variant key, tell-tale line) for built variants
 
 
 def check_category(patterns):

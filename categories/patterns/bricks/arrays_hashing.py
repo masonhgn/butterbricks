@@ -5,7 +5,7 @@ import random
 
 from framework.tests import CallTest as T
 
-from framework.curriculum import Drill, Pattern, Problem, Variant
+from framework.curriculum import Drill, Example, Lesson, Move, Pattern, PlannedVariant, Problem, Variant
 
 
 def _rng(seed):
@@ -38,6 +38,138 @@ def _distinct_then(prefix, n, repeat):
     return [f"{prefix}{i}" for i in range(n)] + [repeat]
 
 
+_BADGES = ("def has_repeat(badges):\n"
+           "    seen = set()  # @start\n"
+           "    for badge in badges:\n"
+           "        if badge in seen:  # @ask\n"
+           "            return True\n"
+           "        seen.add(badge)  # @remember\n"
+           "    return False\n")
+_BADGES_NOTES = {
+    "seen = set()": "Nothing has been seen yet.",
+    "for badge in badges": "Take the next badge.",
+    "if badge in seen": "Ask the set first: has this badge come through already? One lookup, however many "
+                        "badges came before.",
+    "return True": "It has: this badge is a repeat.",
+    "seen.add(badge)": "Only now remember it, after asking. Adding first would make every badge find itself.",
+}
+
+MS_LESSON = Lesson(
+    goals=[
+        "Spot the question \"has this come up before?\" in a problem",
+        "Write the pattern's three moves: start an empty set, ask it, then add to it",
+        "Explain why asking *before* adding is what makes it correct",
+        "Say why it's O(n), when comparing every pair is O(n²)",
+    ],
+    problem="You walk through items one at a time, and for each one you need to know: **have I seen this one "
+            "before?** The obvious way is to look back through every earlier item. That's correct, but each "
+            "look-back is longer than the last.",
+    brute_force="def has_repeat(badges):\n"
+                "    for i in range(len(badges)):\n"
+                "        for j in range(i):  # @slow\n"
+                "            if badges[j] == badges[i]:\n"
+                "                return True\n"
+                "    return False\n",
+    brute_cost="O(n²): badge i is compared with all i badges before it. A million badges means about 500 billion "
+               "comparisons.",
+    moves=[
+        Move("start", "Start with an empty set",
+             "`seen = set()` stands for \"every item before the current one\". Before the first item, that's nothing."),
+        Move("ask", "Ask before you remember",
+             "`x in seen` asks whether x came earlier. A set answers in about the same time however big it gets: it "
+             "works out which bucket x would be in and looks only there, instead of searching everything."),
+        Move("remember", "Remember the item",
+             "`seen.add(x)` puts x in, so every later item can find it. It comes *after* the ask: added first, x would "
+             "find itself."),
+    ],
+    holds="`seen` holds exactly the items before the current one.",
+    why=[
+        "**At the start**, nothing comes before the first item, and `seen` is empty.",
+        "**At each step**, the ask happens while `seen` holds only the items before x, so `x in seen` means exactly "
+        "\"did x come earlier?\" Then `seen.add(x)` puts x in, so the same is true for the next item.",
+        "**At the end**, if no item ever found itself in `seen`, no item came twice.",
+    ],
+    cost_why="O(n) time: n items, each with one lookup and one add, and both are O(1) on average. O(n) space: with no "
+             "repeats, the set ends up holding every item.",
+    examples=[
+        Example(
+            title="Badge scanned twice",
+            statement="Badges are scanned at a door. Return `True` if any badge was scanned more than once.",
+            function="has_repeat", code=_BADGES, notes=_BADGES_NOTES, problem="badge-scanned-twice",
+            cases=[((["A1", "B2", "A1"],), True), ((["A1", "B2", "C3"],), False), (([],), False)],
+            trace_args=(["A1", "C3", "B7", "C3", "D4"],),
+            differs="This is the template, exactly. It stops at the first repeat: once one is found, the rest of "
+                    "the badges don't matter.",
+            classic="LeetCode 217 · Contains Duplicate",
+        ),
+        Example(
+            title="Drop repeated songs",
+            statement="Return the playlist with repeats removed, keeping each song where it first appeared.",
+            function="unique_songs",
+            code="def unique_songs(songs):\n"
+                 "    seen = set()  # @start\n"
+                 "    kept = []\n"
+                 "    for song in songs:\n"
+                 "        if song not in seen:  # @ask\n"
+                 "            seen.add(song)  # @remember\n"
+                 "            kept.append(song)\n"
+                 "    return kept\n",
+            notes={
+                "kept = []": "The answer, in order. The set is only for asking; the list keeps the order.",
+                "if song not in seen": "The question flipped: is this the first time?",
+                "kept.append(song)": "First time, so it stays.",
+            },
+            cases=[((["Ode", "Hey", "Ode", "Run", "Hey"],), ["Ode", "Hey", "Run"]), (([],), [])],
+            trace_args=(["Ode", "Hey", "Ode", "Run"],),
+            differs="The question is flipped: `not in` means \"first time\", and only then is the song kept. It never "
+                    "stops early, since it needs every song. A set has no order, so a list keeps the answer.",
+        ),
+        Example(
+            title="Same email, any capitals",
+            statement="Return `True` if any email signed up twice, where capital letters don't count "
+                      "(`Ana@x.com` and `ana@X.com` are the same).",
+            function="repeated_signup",
+            code="def repeated_signup(emails):\n"
+                 "    seen = set()  # @start\n"
+                 "    for email in emails:\n"
+                 "        key = email.lower()\n"
+                 "        if key in seen:  # @ask\n"
+                 "            return True\n"
+                 "        seen.add(key)  # @remember\n"
+                 "    return False\n",
+            notes={
+                "key = email.lower()": "What counts as \"the same\": the email in lowercase.",
+                "if key in seen": "Ask about the lowercase form, not the email as typed.",
+                "seen.add(key)": "And remember the lowercase form too.",
+            },
+            cases=[((["Ana@x.com", "bo@y.org", "ana@X.com"],), True), ((["a@x.com", "b@x.com"],), False)],
+            trace_args=(["Ana@x.com", "bo@y.org", "ana@X.com"],),
+            differs="The set holds a *derived* key, the lowercase email, not the item itself. Whatever you put in "
+                    "the set decides what counts as \"the same\".",
+        ),
+    ],
+    toolkit=[
+        ("The empty set", "seen = set()    # not {}: that's an empty dict\nseen = {\"A1\", \"B2\"}",
+         "`{}` makes a dict. An empty set is always `set()`."),
+        ("A one-line duplicate check", "len(set(items)) != len(items)",
+         "It builds the whole set first, so it can't stop at the first repeat. That's fine when you'd look at every "
+         "item anyway."),
+        ("What can go in a set", "seen.add((row, col))   # a tuple: fine\nseen.add([row, col])   # TypeError: unhashable type: 'list'",
+         "Set items must be hashable: numbers, strings, tuples, frozensets. Lists, sets and dicts can change, so "
+         "they can't be."),
+        ("Remove repeats, keep order", "list(dict.fromkeys(items))",
+         "Dicts keep insertion order, so each item stays where it first appeared."),
+    ],
+    mistake_code={
+        MS_ADD_FIRST: ("for x in items:\n    seen.add(x)\n    if x in seen:  # always True now\n        return True",
+                       "for x in items:\n    if x in seen:\n        return True\n    seen.add(x)"),
+        MS_LIST: ("seen = []\nfor x in items:\n    if x in seen:  # scans the whole list\n        return True\n    seen.append(x)",
+                  "seen = set()\nfor x in items:\n    if x in seen:  # one O(1) lookup\n        return True\n    seen.add(x)"),
+        MS_UNHASHABLE: ("seen.add([row, col])", "seen.add((row, col))"),
+    },
+)
+
+
 membership_set = Variant(
     key="membership-set",
     name="Membership set",
@@ -48,12 +180,13 @@ membership_set = Variant(
          "\"is x in you?\" takes the same time however big it gets, so one pass answers \"have I seen this before?\" "
          "for every item.",
     invariant="Before step i, `seen` holds exactly the items before index i.",
-    template="seen = set()\nfor x in items:\n    if x in seen:\n        ...  # x appeared before\n    seen.add(x)",
+    template="seen = set()  # @start\nfor x in items:\n    if x in seen:  # @ask\n        ...  # x appeared before\n    seen.add(x)  # @remember",
     complexity="O(n) time, O(n) space",
     signals=["\"any duplicates?\"", "\"has this appeared before?\"", "\"the first repeated ...\"", "\"is every item unique?\""],
-    near_misses=["Frequency counting: when you need how many times, not whether"],
+    near_misses=[],
     mistakes=[MS_ADD_FIRST, MS_LIST, MS_UNHASHABLE],
     prerequisites=[],
+    lesson=MS_LESSON,
     problems=[
         Problem(
             key="badge-scanned-twice",
@@ -63,28 +196,13 @@ membership_set = Variant(
                       "than once, and `False` otherwise.",
             function="has_repeat",
             signature="def has_repeat(badges: list[str]) -> bool:",
-            reference="def has_repeat(badges):\n"
-                      "    seen = set()\n"
-                      "    for badge in badges:\n"
-                      "        if badge in seen:\n"
-                      "            return True\n"
-                      "        seen.add(badge)\n"
-                      "    return False\n",
+            reference=_BADGES,
             tests=[
                 T("a badge comes back", (["A1", "B2", "A1"],), True),
                 T("all different", (["A1", "B2", "C3"],), False),
             ],
             trace_args=(["A1", "C3", "B7", "C3", "D4"],),
-            notes={
-                "seen = set()": "Nothing has been seen yet.",
-                "for badge in badges": "Take the next badge.",
-                "if badge in seen": "Ask the set first: has this badge come through already? One lookup, however many "
-                                    "badges came before.",
-                "return True": "It has: this badge is a repeat.",
-                "seen.add(badge)": "Only now remember it, after asking. Adding first would make every badge find "
-                                   "itself.",
-            },
-            predict={"if badge in seen": "badge in seen"},
+            notes=_BADGES_NOTES,
             takeaway="Ask, then add. The set stands for \"everything before this one\", which is exactly what the "
                      "question needs.",
         ),
@@ -323,6 +441,146 @@ def _random_letters(seed, n):
     return "".join(r.choice("abcdefghijklmnopqrstuvwxyz") for _ in range(n))
 
 
+_REARRANGED = ("def same_letters(a, b):\n"
+               "    if len(a) != len(b):\n"
+               "        return False\n"
+               "    count = {}  # @start\n"
+               "    for ch in a:\n"
+               "        count[ch] = count.get(ch, 0) + 1  # @tally\n"
+               "    for ch in b:\n"
+               "        count[ch] = count.get(ch, 0) - 1  # @tally\n"
+               "        if count[ch] < 0:  # @read\n"
+               "            return False\n"
+               "    return True\n")
+_REARRANGED_NOTES = {
+    "if len(a) != len(b)": "Different lengths can't be rearrangements: a quick exit.",
+    "count = {}": "An empty tally.",
+    "count[ch] = count.get(ch, 0) + 1": "Count one more of this letter. get(ch, 0) treats a letter never seen as 0.",
+    "count[ch] = count.get(ch, 0) - 1": "Use up one of this letter for b.",
+    "if count[ch] < 0": "Has b used more of this letter than a has?",
+    "return True": "Same length, and b never ran out of a letter: every count ended at 0.",
+}
+
+FC_LESSON = Lesson(
+    goals=[
+        "Spot \"how many times\" questions, and \"the same items in any order\"",
+        "Build a tally in one pass with `count.get(x, 0) + 1`",
+        "Read the tally: one count, the biggest count, or a comparison against another collection",
+        "Use `Counter` when it's clearer, and know what it does underneath",
+    ],
+    problem="You need to know **how many times** each value appears: to compare two collections, find the most "
+            "common value, or check there's enough of something. The obvious way counts from scratch every time it "
+            "asks.",
+    brute_force="def same_letters(a, b):\n"
+                "    if len(a) != len(b):\n"
+                "        return False\n"
+                "    for ch in a:\n"
+                "        if a.count(ch) != b.count(ch):  # @slow\n"
+                "            return False\n"
+                "    return True\n",
+    brute_cost="O(n²): each `.count()` walks the whole word, and it runs once per letter.",
+    moves=[
+        Move("start", "Start an empty tally",
+             "`count = {}` maps each value to how many times it has appeared so far. So far, nothing has."),
+        Move("tally", "Count each item",
+             "`count[x] = count.get(x, 0) + 1` adds one to x's count. `get(x, 0)` reads 0 for a value never seen, so "
+             "the first one doesn't raise a KeyError. Counting *down* (`- 1`) uses items up instead."),
+        Move("read", "Read the tally",
+             "Once it's built, each question is a lookup: `count[x]`, the biggest count, or whether a count went "
+             "below zero. Nothing gets recounted."),
+    ],
+    holds="`count[x]` is how many times x has appeared in the items processed so far (minus any used up, when "
+          "counting down).",
+    why=[
+        "**At the start**, nothing has been processed, and every count is 0: missing from the dict, which `get` "
+        "reads as 0.",
+        "**At each step**, exactly one value's count changes, by exactly one, so every count stays right.",
+        "**At the end**, the dict holds the full count of every value, so any question about counts is one lookup.",
+    ],
+    cost_why="O(n) time: one pass, with one O(1) dict update per item. O(k) space for k distinct values: at most 26 "
+             "for lowercase letters, however long the words are.",
+    examples=[
+        Example(
+            title="Rearranged words",
+            statement="Return `True` if word `b` is a rearrangement of word `a`: the same letters, each used the "
+                      "same number of times.",
+            function="same_letters", code=_REARRANGED, notes=_REARRANGED_NOTES, problem="rearranged-words",
+            cases=[(("listen", "silent"), True), (("rat", "car"), False), (("tab", "bat"), True)],
+            trace_args=("tab", "bat"),
+            differs="One tally, counted up for `a` and down for `b`. Reading it is the check for below zero: `b` "
+                    "used a letter that `a` didn't have enough of.",
+            classic="LeetCode 242 · Valid Anagram",
+        ),
+        Example(
+            title="Most votes",
+            statement="Return the name with the most votes. On a tie, the name that got its first vote earliest "
+                      "wins.",
+            function="winner",
+            code="def winner(votes):\n"
+                 "    count = {}  # @start\n"
+                 "    for name in votes:\n"
+                 "        count[name] = count.get(name, 0) + 1  # @tally\n"
+                 "    best = None\n"
+                 "    for name in count:\n"
+                 "        if best is None or count[name] > count[best]:  # @read\n"
+                 "            best = name\n"
+                 "    return best\n",
+            notes={
+                "best = None": "The tally is done. Now read it.",
+                "for name in count": "A dict iterates its keys in the order they were first added.",
+                "if best is None or count[name] > count[best]": "More votes than the best so far? Strictly more, so a "
+                                                                 "tie keeps the earlier name.",
+            },
+            cases=[((["ana", "bo", "ana", "cy", "bo", "ana"],), "ana"), ((["bo", "cy"],), "bo"), ((["cy"],), "cy")],
+            trace_args=(["ana", "bo", "cy", "bo"],),
+            differs="Two passes: build the whole tally first, then read it to find the biggest count. The read "
+                    "loops over the distinct names, not every vote.",
+        ),
+        Example(
+            title="Letters to change",
+            statement="Words `a` and `b` have the same length. How many letters of `b` must be changed to make "
+                      "it a rearrangement of `a`?",
+            function="letters_to_change",
+            code="def letters_to_change(a, b):\n"
+                 "    count = {}  # @start\n"
+                 "    for ch in a:\n"
+                 "        count[ch] = count.get(ch, 0) + 1  # @tally\n"
+                 "    for ch in b:\n"
+                 "        count[ch] = count.get(ch, 0) - 1  # @tally\n"
+                 "    return sum(c for c in count.values() if c > 0)  # @read\n",
+            notes={
+                "return sum(c for c in count.values() if c > 0)": "A positive count is a letter `b` is short of. Each "
+                                                                  "one costs one change.",
+            },
+            cases=[(("bab", "aba"), 1), (("leetcode", "practice"), 5), (("anagram", "mangaar"), 0)],
+            trace_args=("bab", "aba"),
+            differs="This time counting down never stops early. What's left in the tally is the *difference* "
+                    "between the two words, and the answer is read from it.",
+            classic="LeetCode 1347 · Minimum Steps to Make Two Strings Anagram",
+        ),
+    ],
+    toolkit=[
+        ("Counter does the tally", "from collections import Counter\ncount = Counter(\"banana\")  # {'a': 3, 'n': 2, 'b': 1}\ncount[\"z\"]                 # 0: no KeyError",
+         "A dict whose missing keys read as 0."),
+        ("Compare two tallies", "Counter(a) == Counter(b)   # same items, any order",
+         "Equal when every value has the same count, whatever order the items came in."),
+        ("The most common", "Counter(votes).most_common(1)   # [('ana', 3)]\nmax(count, key=count.get)       # the key with the biggest count",
+         "`most_common(k)` gives the k biggest counts, biggest first."),
+        ("defaultdict(int)", "from collections import defaultdict\ncount = defaultdict(int)\ncount[x] += 1",
+         "Missing keys start at 0 the first time they're touched."),
+        ("A fixed alphabet as a list", "count = [0] * 26\nfor ch in word:\n    count[ord(ch) - ord(\"a\")] += 1",
+         "When the values are lowercase letters (or small numbers), a list of 26 counts works too, and "
+         "`tuple(count)` can be a dict key."),
+    ],
+    mistake_code={
+        FC_KEYERROR: ("count[x] += 1  # KeyError the first time x appears", "count[x] = count.get(x, 0) + 1"),
+        FC_SET_ONLY: ("set(a) == set(b)  # \"aab\" and \"abb\" look the same", "Counter(a) == Counter(b)"),
+        FC_RECOUNT: ("for ch in a:\n    if a.count(ch) != b.count(ch):  # two full scans per letter\n        return False",
+                     "count = Counter(a)  # one scan, then lookups\nfor ch in b:\n    count[ch] -= 1"),
+    },
+)
+
+
 frequency_counting = Variant(
     key="frequency-counting",
     name="Frequency counting",
@@ -332,12 +590,13 @@ frequency_counting = Variant(
     idea="Map each value to how many times it has appeared. One pass builds the tally; after that, \"how many x?\" "
          "is a single lookup. Two tallies that are equal describe the same items, in any order.",
     invariant="`count[x]` is how many times x occurs in the part processed so far.",
-    template="count = {}\nfor x in items:\n    count[x] = count.get(x, 0) + 1",
+    template="count = {}  # @start\nfor x in items:\n    count[x] = count.get(x, 0) + 1  # @tally\nhow_many = count.get(q, 0)  # @read",
     complexity="O(n) time, O(k) space for k distinct values",
     signals=["\"how many times\"", "\"most common\"", "\"the same letters\"", "\"a rearrangement of\"", "\"majority\""],
-    near_misses=["Membership set: when only whether matters", "Sorting: also works, but O(n log n) where counting is O(n)"],
+    near_misses=[],
     mistakes=[FC_KEYERROR, FC_SET_ONLY, FC_RECOUNT],
     prerequisites=["membership-set"],
+    lesson=FC_LESSON,
     problems=[
         Problem(
             key="rearranged-words",
@@ -347,32 +606,13 @@ frequency_counting = Variant(
                       "number of times.",
             function="same_letters",
             signature="def same_letters(a: str, b: str) -> bool:",
-            reference="def same_letters(a, b):\n"
-                      "    if len(a) != len(b):\n"
-                      "        return False\n"
-                      "    count = {}\n"
-                      "    for ch in a:\n"
-                      "        count[ch] = count.get(ch, 0) + 1\n"
-                      "    for ch in b:\n"
-                      "        count[ch] = count.get(ch, 0) - 1\n"
-                      "        if count[ch] < 0:\n"
-                      "            return False\n"
-                      "    return True\n",
+            reference=_REARRANGED,
             tests=[
                 T("listen and silent", ("listen", "silent"), True),
                 T("rat and car", ("rat", "car"), False),
             ],
             trace_args=("tab", "bat"),
-            notes={
-                "if len(a) != len(b)": "Different lengths can't be rearrangements: a quick exit.",
-                "count = {}": "An empty tally.",
-                "count[ch] = count.get(ch, 0) + 1": "Count one more of this letter. get(ch, 0) treats a letter never "
-                                                    "seen as 0.",
-                "count[ch] = count.get(ch, 0) - 1": "Use up one of this letter for b.",
-                "if count[ch] < 0": "Has b used more of this letter than a has?",
-                "return True": "Same length, and b never ran out of a letter: every count ended at 0.",
-            },
-            predict={"if count[ch] < 0": "count[ch] < 0"},
+            notes=_REARRANGED_NOTES,
             takeaway="Count up for one side, down for the other. Equal lengths plus never going below zero means every "
                      "count came back to exactly 0.",
         ),
@@ -630,6 +870,134 @@ def _big_apart(n):
     return [i * 4 for i in range(n)] + [10**9 + 2, 10**9 + 3], 1
 
 
+_GIFT_CARDS = ("def gift_cards(balances, price):\n"
+               "    index = {}  # @start\n"
+               "    for i, balance in enumerate(balances):\n"
+               "        partner = price - balance  # @partner\n"
+               "        if partner in index:  # @lookup\n"
+               "            return index[partner], i  # @lookup\n"
+               "        index[balance] = i  # @store\n")
+_GIFT_CARDS_NOTES = {
+    "index = {}": "Balances seen so far, and where each was.",
+    "partner = price - balance": "The one balance that would complete this card.",
+    "if partner in index": "Has that partner already gone by? One lookup instead of checking every pair.",
+    "return index[partner], i": "Found it: the partner's position, then this card's.",
+    "index[balance] = i": "Remember this card for the cards after it. Storing after the check means a card can't "
+                          "pair with itself.",
+}
+
+CL_LESSON = Lesson(
+    goals=[
+        "Spot \"two items that combine to a target\"",
+        "Turn each item into the one partner it needs, and look that partner up",
+        "Store each item *after* the lookup, so nothing pairs with itself",
+        "Choose what the map stores for each item: its position, its name, whatever you need back",
+    ],
+    problem="You need **two items that fit together**: they add up to a target, or match in some other fixed way. "
+            "The obvious way tries every pair.",
+    brute_force="def gift_cards(balances, price):\n"
+                "    for i in range(len(balances)):\n"
+                "        for j in range(i + 1, len(balances)):  # @slow\n"
+                "            if balances[i] + balances[j] == price:\n"
+                "                return i, j\n",
+    brute_cost="O(n²): about n²/2 pairs. With 100,000 cards, that's 5 billion checks.",
+    moves=[
+        Move("start", "Start an empty map",
+             "`index = {}` will map each value seen so far to what you'll need back about it, here its position."),
+        Move("partner", "Work out the partner",
+             "For x, exactly one value completes it: `target - x`. Finding the partner is arithmetic, not a search."),
+        Move("lookup", "Look the partner up",
+             "`partner in index` asks whether that partner came earlier, in O(1). If it did, `index[partner]` says "
+             "where it was."),
+        Move("store", "Store yourself",
+             "Only now add x, so the items after it can find it. Storing first would let x pair with itself when x is "
+             "exactly half the target."),
+    ],
+    holds="`index` holds every value before the current one, each mapped to its position.",
+    why=[
+        "**At the start**, nothing comes before the first item, and the map is empty.",
+        "**At each step**, the lookup searches only the items before x, so a match is a real pair of two different "
+        "items. Then x is added, so the map is right for the next item.",
+        "**By the end**, every pair has been checked once, when the loop reached its second item: the first was "
+        "already in the map. No pair is missed.",
+    ],
+    cost_why="O(n) time: one pass, with one subtraction, one lookup and one insert per item. O(n) space for the map.",
+    examples=[
+        Example(
+            title="Two gift cards",
+            statement="Exactly two of your gift cards add up to the price. Return their positions, earlier one "
+                      "first.",
+            function="gift_cards", code=_GIFT_CARDS, notes=_GIFT_CARDS_NOTES, problem="two-gift-cards",
+            cases=[(([25, 10, 40, 15], 50), (1, 2)), (([20, 20], 40), (0, 1))],
+            trace_args=([25, 10, 40, 15], 50),
+            viz={"indexes": {"index": "balances"}},
+            differs="The template, exactly: the map stores positions, because positions are the answer.",
+            classic="LeetCode 1 · Two Sum",
+        ),
+        Example(
+            title="A word and its reverse",
+            statement="Return the positions of the first two words where the later one is the earlier one "
+                      "backwards (like `stop` and `pots`), or `None`.",
+            function="mirror_pair",
+            code="def mirror_pair(words):\n"
+                 "    index = {}  # @start\n"
+                 "    for i, word in enumerate(words):\n"
+                 "        need = word[::-1]  # @partner\n"
+                 "        if need in index:  # @lookup\n"
+                 "            return index[need], i  # @lookup\n"
+                 "        index[word] = i  # @store\n"
+                 "    return None\n",
+            notes={
+                "need = word[::-1]": "This word's partner is itself, backwards.",
+                "if need in index": "Did the backwards word come earlier?",
+            },
+            cases=[((["stop", "tops", "pots", "opts"],), (0, 2)), ((["ab", "cd"],), None), ((["aba"],), None)],
+            trace_args=(["stop", "tops", "pots"],),
+            viz={"indexes": {"index": "words"}},
+            differs="The partner isn't arithmetic: it's the word reversed. When a rule fixes exactly one partner "
+                    "for each item, the moves are the same.",
+        ),
+        Example(
+            title="Two dishes for the budget",
+            statement="The menu is a list of `(name, price)`. Return the names of two dishes that cost exactly "
+                      "the budget together, earlier one first, or `None`.",
+            function="two_dishes",
+            code="def two_dishes(menu, budget):\n"
+                 "    by_price = {}  # @start\n"
+                 "    for name, price in menu:\n"
+                 "        need = budget - price  # @partner\n"
+                 "        if need in by_price:  # @lookup\n"
+                 "            return by_price[need], name  # @lookup\n"
+                 "        by_price[price] = name  # @store\n"
+                 "    return None\n",
+            notes={
+                "by_price = {}": "Price → the dish with that price.",
+                "by_price[price] = name": "Store the name: it's what the answer needs back.",
+            },
+            cases=[(([("soup", 6), ("pie", 9), ("tea", 3), ("cake", 7)], 10), ("tea", "cake")),
+                   (([("pie", 5)], 10), None)],
+            trace_args=([("soup", 6), ("pie", 9), ("tea", 3), ("cake", 7)], 10),
+            differs="The map stores what you'll want back, the dish's name, not its position.",
+        ),
+    ],
+    toolkit=[
+        ("enumerate gives the position too", "for i, x in enumerate(nums):\n    ...",
+         "`i` counts from 0 alongside each item."),
+        ("Look up and fetch at once", "j = index.get(need)\nif j is not None:\n    return j, i",
+         "`get` returns None when the partner isn't there. Compare with `is not None`: position 0 is falsy."),
+        ("Other partners", "need = target - x   # adds up to target\nneed = word[::-1]   # a word and its reverse",
+         "Whenever x fixes exactly one partner, the moves are the same."),
+    ],
+    mistake_code={
+        CL_STORE_FIRST: ("index[x] = i\nif target - x in index:  # x can find itself\n    return index[target - x], i",
+                         "if target - x in index:\n    return index[target - x], i\nindex[x] = i"),
+        CL_VALUES: ("return target - x, x  # the values", "return index[target - x], i  # their positions"),
+        CL_NESTED: ("for i in range(n):\n    for j in range(i + 1, n):  # every pair\n        ...",
+                    "for i, x in enumerate(nums):  # one pass, one lookup each\n    ..."),
+    },
+)
+
+
 complement_lookup = Variant(
     key="complement-lookup",
     name="Complement lookup",
@@ -639,14 +1007,13 @@ complement_lookup = Variant(
     idea="For each x, the partner it needs is fixed: target − x. So instead of trying every pair, look the partner up "
          "among the items before x, then store x for the items after it.",
     invariant="Before step i, the map holds value → index for exactly the items before i.",
-    template="index = {}\nfor i, x in enumerate(nums):\n    if target - x in index:\n        return index[target - x], i\n"
-             "    index[x] = i",
+    template="index = {}  # @start\nfor i, x in enumerate(nums):\n    need = target - x  # @partner\n    if need in index:  # @lookup\n        return index[need], i  # @lookup\n    index[x] = i  # @store",
     complexity="O(n) time, O(n) space",
     signals=["\"two items that add up to\"", "\"a pair with difference\"", "unsorted input", "the answer is positions"],
-    near_misses=["Converging pointers (Two Pointers): when the input is sorted, or may be, and O(1) space matters",
-                 "Prefix sums with a hash map (later): the same idea over running sums"],
+    near_misses=[],
     mistakes=[CL_STORE_FIRST, CL_VALUES, CL_NESTED],
     prerequisites=["membership-set", "frequency-counting"],
+    lesson=CL_LESSON,
     problems=[
         Problem(
             key="two-gift-cards",
@@ -655,27 +1022,14 @@ complement_lookup = Variant(
             statement="Exactly two of your gift cards add up to the price. Return their positions, earlier one first.",
             function="gift_cards",
             signature="def gift_cards(balances: list[int], price: int) -> tuple[int, int]:",
-            reference="def gift_cards(balances, price):\n"
-                      "    index = {}\n"
-                      "    for i, balance in enumerate(balances):\n"
-                      "        partner = price - balance\n"
-                      "        if partner in index:\n"
-                      "            return index[partner], i\n"
-                      "        index[balance] = i\n",
+            reference=_GIFT_CARDS,
             tests=[
                 T("10 and 40", ([25, 10, 40, 15], 50), (1, 2)),
                 T("two equal cards", ([20, 20], 40), (0, 1)),
             ],
             trace_args=([25, 10, 40, 15], 50),
-            notes={
-                "index = {}": "Balances seen so far, and where each was.",
-                "partner = price - balance": "The one balance that would complete this card.",
-                "if partner in index": "Has that partner already gone by? One lookup instead of checking every pair.",
-                "return index[partner], i": "Found it: the partner's position, then this card's.",
-                "index[balance] = i": "Remember this card for the cards after it. Storing after the check means a card "
-                                      "can't pair with itself.",
-            },
-            predict={"if partner in index": "partner in index"},
+            notes=_GIFT_CARDS_NOTES,
+            viz={"indexes": {"index": "balances"}},
             takeaway="Each item knows exactly what partner it needs, so the question becomes a lookup. Check first, "
                      "store after.",
         ),
@@ -888,6 +1242,127 @@ GK_UNHASHABLE = "using a list as the key: lists aren't hashable, so use a tuple 
 GK_NOT_CANONICAL = "a key that isn't the same for equivalent items, like a set of letters (\"aab\" and \"abb\" collide)"
 GK_DICT = "returning the dictionary itself when a list of groups was asked for"
 
+_GROUP_WORDS = ("def group_words(words):\n"
+                "    groups = {}\n"
+                "    for word in words:\n"
+                "        key = \"\".join(sorted(word))  # @key\n"
+                "        groups.setdefault(key, []).append(word)  # @bucket\n"
+                "    return list(groups.values())  # @collect\n")
+_GROUP_WORDS_NOTES = {
+    "groups = {}": "Key → the words that share it.",
+    "key = \"\".join(sorted(word))": "Sorting the letters gives every rearrangement the same key: tea, ate and eat "
+                                     "all become \"aet\".",
+    "groups.setdefault(key, []).append(word)": "Start a group the first time a key appears, then add the word to it.",
+    "return list(groups.values())": "The groups themselves, not the dictionary.",
+}
+
+GK_LESSON = Lesson(
+    goals=[
+        "Spot \"group the ones that are the same up to …\"",
+        "Design a key that's equal exactly when two items are equivalent",
+        "Bucket items with `setdefault` (or `defaultdict(list)`)",
+        "Return the groups, not the dict",
+    ],
+    problem="You need to **sort items into groups** of ones that are equivalent: rearrangements of each other, "
+            "born in the same month, the same shape. The obvious way compares each item with every group so far.",
+    brute_force="def group_words(words):\n"
+                "    groups = []\n"
+                "    for word in words:\n"
+                "        for group in groups:  # @slow\n"
+                "            if sorted(group[0]) == sorted(word):\n"
+                "                group.append(word)\n"
+                "                break\n"
+                "        else:\n"
+                "            groups.append([word])\n"
+                "    return groups\n",
+    brute_cost="O(n²) when most words are alone: each word is compared with every group so far, and there can be "
+               "nearly n of them.",
+    moves=[
+        Move("key", "Design the key",
+             "Turn each item into a key that's the same for every item it belongs with, and different for every other "
+             "item. This is the real problem; the rest is bookkeeping."),
+        Move("bucket", "Bucket by key",
+             "`groups.setdefault(k, []).append(x)` starts an empty list the first time k appears, then adds x to "
+             "k's list. One O(1) lookup, instead of comparing with every group."),
+        Move("collect", "Collect the groups",
+             "`list(groups.values())` gives the lists themselves, which is what was asked for, not the dict."),
+    ],
+    holds="`groups[k]` holds every item so far whose key is k, in the order they came.",
+    why=[
+        "**At the start**, there are no items and no groups.",
+        "**At each step**, x goes into exactly the list for its key, so every list still holds exactly the items "
+        "with that key.",
+        "**At the end**, two items share a list exactly when their keys are equal. If the key is right, that's "
+        "exactly when they're equivalent.",
+    ],
+    cost_why="O(n × k) time, where k is the cost of computing one key: sorting a word of length m is O(m log m). "
+             "O(n) space for the groups.",
+    examples=[
+        Example(
+            title="Group rearranged words",
+            statement="Group words that are rearrangements of each other.",
+            function="group_words", code=_GROUP_WORDS, notes=_GROUP_WORDS_NOTES, problem="group-rearranged-words",
+            cases=[((["tea", "ate", "tan", "eat", "nat", "bat"],), [["tea", "ate", "eat"], ["tan", "nat"], ["bat"]])],
+            trace_args=(["tea", "ate", "tan", "eat"],),
+            differs="The key is the word's letters in sorted order, because \"rearrangement\" means \"order "
+                    "doesn't matter\".",
+            classic="LeetCode 49 · Group Anagrams",
+        ),
+        Example(
+            title="Birthdays by month",
+            statement="People are `(name, \"YYYY-MM-DD\")` pairs. Group the names of people born in the same month.",
+            function="by_month",
+            code="def by_month(people):\n"
+                 "    groups = {}\n"
+                 "    for name, born in people:\n"
+                 "        key = born[5:7]  # @key\n"
+                 "        groups.setdefault(key, []).append(name)  # @bucket\n"
+                 "    return list(groups.values())  # @collect\n",
+            notes={
+                "key = born[5:7]": "The month: characters 5 and 6 of the date.",
+                "groups.setdefault(key, []).append(name)": "Store the name; the key came from the date.",
+            },
+            cases=[(([("ana", "1990-03-14"), ("bo", "1985-11-02"), ("cy", "2001-03-30")],), [["ana", "cy"], ["bo"]])],
+            trace_args=([("ana", "1990-03-14"), ("bo", "1985-11-02"), ("cy", "2001-03-30")],),
+            differs="The key is a slice of the date, so births in different years still land together. What goes "
+                    "in the group (the name) doesn't have to be what the key came from (the date).",
+        ),
+        Example(
+            title="Words by length and first letter",
+            statement="Group words that have the same length *and* start with the same letter.",
+            function="by_shape",
+            code="def by_shape(words):\n"
+                 "    groups = {}\n"
+                 "    for word in words:\n"
+                 "        key = (len(word), word[0])  # @key\n"
+                 "        groups.setdefault(key, []).append(word)  # @bucket\n"
+                 "    return list(groups.values())  # @collect\n",
+            notes={
+                "key = (len(word), word[0])": "Two properties at once, as a tuple. Tuples can be keys; lists can't.",
+            },
+            cases=[((["cat", "cow", "crab", "dog", "cup"],), [["cat", "cow", "cup"], ["crab"], ["dog"]])],
+            trace_args=(["cat", "cow", "crab", "dog"],),
+            differs="A tuple key groups by two things at once: only words that match on both share a key.",
+        ),
+    ],
+    toolkit=[
+        ("defaultdict(list)", "from collections import defaultdict\ngroups = defaultdict(list)\ngroups[k].append(x)",
+         "The same as `setdefault`, a little shorter."),
+        ("Keys that work", "\"\".join(sorted(word))   # order doesn't matter\ntuple(sorted(word))      # the same, as a tuple\n(len(word), word[0])     # two properties at once\nfrozenset(tags)          # a set, made hashable",
+         "A key must be hashable: strings, numbers, tuples, frozensets."),
+        ("Counting instead of collecting", "from collections import Counter\nsizes = Counter(key(x) for x in items)",
+         "When only the size of each group matters, tally the keys instead."),
+    ],
+    mistake_code={
+        GK_UNHASHABLE: ("groups.setdefault(sorted(word), [])  # TypeError: unhashable type: 'list'",
+                        "groups.setdefault(\"\".join(sorted(word)), [])"),
+        GK_NOT_CANONICAL: ("key = frozenset(word)  # \"aab\" and \"abb\" get the same key",
+                           "key = \"\".join(sorted(word))  # \"aab\" and \"abb\" differ"),
+        GK_DICT: ("return groups  # a dict", "return list(groups.values())  # a list of groups"),
+    },
+)
+
+
 grouping_by_key = Variant(
     key="grouping-by-key",
     name="Grouping by key",
@@ -897,12 +1372,13 @@ grouping_by_key = Variant(
     idea="Compute a key for each item that's the same for every item you consider equivalent, and different "
          "otherwise. Then collect items by key: everything that shares a key is one group.",
     invariant="`groups[key(x)]` holds every processed item with that key.",
-    template="groups = {}\nfor x in items:\n    groups.setdefault(key(x), []).append(x)\nreturn list(groups.values())",
+    template="groups = {}\nfor x in items:\n    k = key(x)  # @key\n    groups.setdefault(k, []).append(x)  # @bucket\nreturn list(groups.values())  # @collect",
     complexity="O(n × the cost of one key)",
     signals=["\"group\"", "\"which ones are equivalent\"", "\"classify\"", "\"the same up to order / shift / case\""],
-    near_misses=["Frequency counting: counting per key instead of collecting"],
+    near_misses=[],
     mistakes=[GK_UNHASHABLE, GK_NOT_CANONICAL, GK_DICT],
     prerequisites=["frequency-counting"],
+    lesson=GK_LESSON,
     problems=[
         Problem(
             key="group-rearranged-words",
@@ -912,26 +1388,13 @@ grouping_by_key = Variant(
                       "groups, and of words within a group, doesn't matter.",
             function="group_words",
             signature="def group_words(words: list[str]) -> list[list[str]]:",
-            reference="def group_words(words):\n"
-                      "    groups = {}\n"
-                      "    for word in words:\n"
-                      "        key = \"\".join(sorted(word))\n"
-                      "        groups.setdefault(key, []).append(word)\n"
-                      "    return list(groups.values())\n",
+            reference=_GROUP_WORDS,
             tests=[
                 T("two groups and a single", (["tea", "ate", "tan", "eat", "nat", "bat"],),
                   [["tea", "ate", "eat"], ["tan", "nat"], ["bat"]], normalize=groups_any_order),
             ],
             trace_args=(["tea", "ate", "tan", "eat"],),
-            notes={
-                "groups = {}": "Key → the words that share it.",
-                "key = \"\".join(sorted(word))": "Sorting the letters gives every rearrangement the same key: tea, "
-                                                 "ate and eat all become \"aet\".",
-                "groups.setdefault(key, []).append(word)": "Start a group the first time a key appears, then add the "
-                                                           "word to it.",
-                "return list(groups.values())": "The groups themselves, not the dictionary.",
-            },
-            predict={"groups.setdefault(key, []).append(word)": "key in groups"},
+            notes=_GROUP_WORDS_NOTES,
             takeaway="Choosing the key is the whole problem: equivalent items must get the same key, and different "
                      "items different keys.",
         ),
@@ -1152,4 +1615,32 @@ PATTERN = Pattern(
          "of a rescan.",
     sources=[("NeetCode roadmap", "https://github.com/aridepai17/NEETCODE-ROADMAP")],
     variants=[membership_set, frequency_counting, complement_lookup, grouping_by_key],
+    overview="""Every problem in this pattern asks something about **the items you've already passed**: did this one
+come before, how many times, did its partner come, which ones go together? Looking back through a list to answer
+costs O(n) each time, O(n²) in all. A hash table answers in O(1), so one pass is enough.
+
+**How a hash table does it.** A set or dict keeps its items in a row of *buckets*. To store a key, it computes a
+number from the key (its *hash*) and uses that number to pick a bucket. To find a key later, it computes the same
+hash and looks in that one bucket. No search through everything else. Two keys can share a bucket; Python keeps that
+rare by growing the table as it fills, so lookups stay O(1) on average.
+
+**Hashable keys.** Because the bucket comes from the key's value, a key must never change once it's stored. So
+numbers, strings, tuples and frozensets can be keys, but lists, sets and dicts can't (`TypeError: unhashable type`).
+
+**Set or dict?** A set remembers *whether*: `x in seen`. A dict remembers *something about* each key: a count, a
+position, a list of items. Every subpattern below is one of these, asked a different question.""",
+    map_rows=[
+        ("whether x came before", "a set of the items", "membership-set", "if x in seen"),
+        ("how many times x came", "item → count", "frequency-counting", "count[x] = count.get(x, 0) + 1"),
+        ("whether x's partner came", "item → position", "complement-lookup", "if target - x in index"),
+        ("which items belong together", "key → items", "grouping-by-key", "groups.setdefault(key(x), []).append(x)"),
+    ],
+    planned=[
+        PlannedVariant("Last-seen index", "where x came last, and how far back", "item → latest position",
+                       "if x in last and i - last[x] <= k", status="ours",
+                       aliases=["index map", "last-occurrence map"], classic="LeetCode 219 · Contains Duplicate II"),
+        PlannedVariant("Set operations", "what two collections share, or don't", "two sets",
+                       "common = set(a) & set(b)", status="textbook",
+                       aliases=["set intersection", "set difference"], classic="LeetCode 349 · Intersection of Two Arrays"),
+    ],
 )

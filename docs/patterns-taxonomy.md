@@ -17,13 +17,12 @@ Roles, in the order a learner meets them:
 
 | Role | What the learner does | Why |
 | --- | --- | --- |
-| **example** | Steps through a solved problem, predicting each next state before it's shown | Worked-example effect, with prediction as active retrieval |
+| **example** | Steps through a solved problem in the visualizer, watching every structure change, and can rerun it on their own input | Worked-example effect |
 | **completion** | Fills in the blanked key lines of a near-copy | Fading: the bridge from reading to writing |
 | **twin** | Solves the same structure in a different story, from scratch | Transfer with nothing else changed |
 | **variation** | Solves a problem that differs in exactly one declared dimension | Variation theory: holding the rest fixed reveals which part mattered |
 | **stretch** | A bigger twist, or a combination with an earlier variant | Consolidation |
 | **review** | A held-back twin that returns on a spaced schedule (1, 3, 7, 21 days) | Spacing; never the same problem twice |
-| **drill** | Reads a statement and names the variant, then the signal that gave it away; no code | Recognition, the skill interviews actually test |
 
 A variant counts as **laid** when its variation or its stretch is solved without revealing that problem's solution
 first. Anyone can **test out** of a variant by solving its variation cold (worked examples slow down people who already
@@ -32,7 +31,8 @@ The path is **recommended, not locked**: prerequisites decide the suggested orde
 every variant can be opened at any time.
 
 Every variant records the same fields: key, canonical name, name status, aliases, sources, idea, invariant, template,
-complexity, signals, near-misses (what it's confused with), common mistakes, prerequisites, and its problems. Common
+complexity, signals, near-misses (kept here for authors; not shown on the page), common mistakes, prerequisites, its
+problems and its **lesson** (section 5). Common
 mistakes are not just prose: each one becomes at least one test whose name says what it catches ("the window has to
 shrink twice here: is the shrink a `while`?").
 
@@ -110,7 +110,24 @@ even though it belongs to Sliding Window.
   of a rescan.
 - **Prerequisites** Python's `dict` and `set`; nothing else.
 
-No guide we found names the variants inside this pattern, so all four names are **ours**.
+No guide we found names the variants inside this pattern, so all four names are **ours**. LeetCode's Hash Table
+card does teach key design as its own chapter ("Design the Key"), which is Grouping by key.
+
+**The map** (the pattern's overview page, `#pattern/arrays-hashing`) picks the subpattern by what you need to know
+about the items already passed:
+
+| You need to know… | Keep | Subpattern |
+| --- | --- | --- |
+| whether x came before | a set | Membership set |
+| how many times x came | item → count | Frequency counting |
+| whether x's partner came | item → position | Complement lookup |
+| which items belong together | key → items | Grouping by key |
+| where x came last, and how far back | item → latest position | Last-seen index (planned) |
+| what two collections share | two sets | Set operations (planned) |
+
+**Planned:** *Last-seen index* (ours; aliases index map, last-occurrence map; classic: LeetCode 219, Contains
+Duplicate II; leads into Sliding Window) and *Set operations* (textbook: the Python documentation's term; aliases set
+intersection, set difference; classic: LeetCode 349, Intersection of Two Arrays).
 
 ### 1.1 Membership set
 
@@ -534,30 +551,64 @@ with a hash map) belongs to Prefix Sums; the contrast is taught where both are k
 
 ---
 
-## 5. Recognition drills
+## 5. Lesson format (the Learn tab)
 
-Each drill is a problem statement with no code, and two quick questions, both auto-graded:
+Each variant's Learn page is a lesson built around solved problems, not a reference card. The layout follows:
 
-1. **Which variant?** Multiple choice. The wrong answers are near-misses taken from the variant's own *near-misses*
-   field (for a "longest" problem: "shortest", "prefix sums", "fixed-length").
-2. **What told you?** Pick the signal in the statement ("contiguous, all positive, longest").
+- **USACO Guide modules** ([usaco.guide/general/modules](https://usaco.guide/general/modules)): a focus problem that
+  applies the idea directly, the lesson, its solution, then practice. Our practice is the bricks; the lesson is built
+  on solved problems.
+- **Subgoal labels** (Margulieux & Catrambone, *Learning and Instruction* 42, 2016): name the steps of the procedure,
+  and mark the same names on the lines of every worked example. Learners given labels in both the text and the
+  examples solved new problems better. Here the steps are **moves**, and every piece of code tags its lines with them.
+- **Loop-invariant teaching** (CLRS ch. 2): say what the variable means, then check it at the start, after each step
+  and at the end. That's "Why it works", in plain words, in place of a bare "Invariant".
+- Interview guides showing the brute force next to the pattern solution, so the speed-up has a reason.
 
-Drills only include variants the learner has laid, plus at most one unfamiliar distractor. They are mixed across
-patterns: the point is telling patterns apart, which practice inside one labelled section never trains.
+The page, top to bottom: what you'll learn (2-4 goals); the problem it solves, with the brute-force code (its slow
+lines tagged `# @slow`) and its cost; how it works (the moves, numbered and colored, then the template tinted by
+move); why it works; three worked examples, each with its statement, cases, a visualizer playing it (tinted by move,
+with an editable input), what's different from the template, and the classic problem it matches; a Python toolkit;
+cost, with its reason; signals ("Spot it"); common mistakes, each with wrong and right code; and the name's status.
+
+**Moves and tags.** A move is `Move(key, label, text)`. A code line belongs to a move when it ends in `# @<key>`; the
+page strips the tags, tints those lines in the move's color (move 1 gold, 2 teal, 3 rose, 4 violet) and labels the
+first line of each run. The template, the worked examples and the brick's own example all use the same tags, so the
+pattern stands out from each problem's own code.
+
+**Anti-spoiler rule.** Example 1 is the brick's worked example; the others are new problems, never a practice
+problem's answer. The selftest checks this, and that every example gives its cases, the brute force agrees with
+example 1, and every trace builds.
+
+**The visualizer** (`web/visual.js`, traces from `categories/framework/trace.py`) draws each variable as what it is:
+a list as cells with each loop's position under them, a set as an 8-bucket hash table where a lookup lights up only
+its bucket, a dict as a key → value table (with arrows into a list when its values are positions, set by `viz`), an
+object as its fields. Each step shows what changed since the one before. It replaced the True/False predictions and
+the multiple-choice questions, which invited guessing.
+
+**Recognition drills** are retired for now: picking a pattern from a list invited guessing too. Their data stays in
+the content files; signals are taught on each Learn page instead.
 
 ## 6. Authoring checklist, per variant
 
 - [ ] The entry above is complete and the names are reviewed
-- [ ] Lesson: idea, invariant in bold, a step-through visual of the state
-- [ ] Worked example with a trace to step through (predict, then reveal)
+- [ ] Lesson (section 5): goals, brute force, 2-4 moves tagged in the template, why it works, three worked examples,
+      toolkit, mistakes with wrong and right code
+- [ ] Worked example with a trace to step through, its lines tagged with the moves
 - [ ] Completion, twin, variation (with "what changes"), stretch
 - [ ] Three or more review twins
-- [ ] Three or more drills
+- [ ] Three or more drills (kept for when drills return)
 - [ ] Every common mistake has at least one named test that catches it
 - [ ] A scale test where the naive approach times out, if the variant is about speed
 - [ ] `./butterbricks.py selftest` passes
 
 ## Sources
+
+- Lesson layout: [USACO Guide, modules](https://usaco.guide/general/modules); Margulieux & Catrambone, "Improving
+  problem solving with subgoal labels in expository text and worked examples", *Learning and Instruction* 42 (2016)
+  ([record](https://scholarworks.gsu.edu/ltd_facpub/4)); loop invariants as in CLRS ch. 2
+  ([Pomona CS140 slides](https://cs.pomona.edu/classes/cs140/archive/2021fall/pdf/l03-loop-invariant.pdf))
+- Key design: LeetCode's Hash Table card, "Design the Key" ([outline](https://coggle.it/diagram/YxFbEECwZkiUlWcU/t/hash-table))
 
 - NeetCode roadmap topic order: [NEETCODE-ROADMAP](https://github.com/aridepai17/NEETCODE-ROADMAP),
   [Educative on the NeetCode roadmap](https://www.educative.io/blog/neetcode-roadmap)

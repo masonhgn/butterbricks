@@ -30,14 +30,16 @@ then build the new operations. In this category's words:
 - **Design before code.** Every problem has a design card (what you'll keep, the invariant, each operation's cost) to
   fill in first and compare with ours after. Opening ours before solving counts as revealing the solution.
 - **Worked designs.** A technique's first problem walks the reasoning one question at a time (which operation is the
-  bottleneck, what could fix it, what must stay true), then steps through the code with every field of the object
-  shown as it changes, so you watch the structures stay in sync.
+  bottleneck, what could fix it, what must stay true). Each question is for thinking through, and its reasoning shows
+  when asked for (there are no options to pick from). Then the visualizer steps through the code, drawing every field
+  of the object as it changes (for a position map, arrows from each `pos` entry into `items`), so you watch the
+  structures stay in sync.
 
 ## 3. Model and roles
 
 Category → **family** (a pattern, in Patterns' terms) → **technique** (a variant, a brick) → problem with a role:
-worked design (example), completion, twin, variation, stretch, reviews, and drills ("which technique fits these
-operations?" then "what in the requirements told you?"). Problems here are classes, tested by sequences of operations
+worked design (example), completion, twin, variation, stretch and reviews. (Recognition drills are retired for now;
+see patterns-taxonomy.md section 5.) Problems here are classes, tested by sequences of operations
 (correctness, against the reference) and by cost tests.
 
 ## 4. Families, in the recommended order

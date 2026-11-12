@@ -3,4 +3,4 @@
 from bricks import get_problem
 from framework.curriculum_tools import browser_functions
 
-prepare, run_one, scratch = browser_functions(get_problem)
+prepare, run_one, scratch, trace = browser_functions(get_problem)

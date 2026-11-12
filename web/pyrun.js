@@ -12,7 +12,7 @@ function startPython({ base, files, onStatus }) {
   const waiting = new Map();
 
   function start() {
-    worker = new Worker("/pyworker.js?v=bbs-6");
+    worker = new Worker("/pyworker.js?v=bbs-8");
     worker.onmessage = ({ data }) => {
       const p = waiting.get(data.id);
       if (!p) return;
